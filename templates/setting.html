@@ -1,0 +1,100 @@
+{% extends 'headfoot.html' %}
+{% block title %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+<title>DataExtractor | setting</title>
+{% endblock title %}
+{% block body %}
+<br><br><br>
+    {% for message in get_flashed_messages() %}
+    <div class="alert alert-warning alert-dismissible fade show" role="alert" onclick="closeAlert(this)">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+{% endfor %}
+
+<script>
+    function closeAlert(alertElement) {
+        alertElement.classList.remove("show");
+        setTimeout(function() {
+            alertElement.style.display = "none";
+        }, 500);
+    }
+</script>
+
+<ol>
+    <li>
+        <div class="form-check form-switch my-3"> 
+            {%if status %}
+            <label class="form-check-label" for="flexSwitchCheckChecked" value="1"><b>Disable help button</b></label>
+            <button class="btn btn-danger"><a href="/HelpChange?status=0&token={{token}}" class="text-decoration-none text-light">Disable</a></button>
+            {%else %}
+            <label class="form-check-label" for="flexSwitchCheckChecked"  value="0"><b>Enable help buttton</b></label>
+            <button class="btn btn-success"><a href="/HelpChange?status=1&token={{token}}" class="text-decoration-none text-light">Enable</a></button>
+            {%endif%}
+        </div>
+    </li>
+
+    <li><div class="form-check form-switch my-3">
+<div class="alert alert-primary" role="alert" id="alert">
+  current format: {{dateformat}}
+</div>
+        <input id="token" value="{{token}}p" type="hidden"></input>
+        <label class="form-check-label" >Convert into </label>
+        
+<select id="dateformat">
+            <option value="No">Select</option>
+            <option value="No">No</option>
+            <option value="%m/%d/%Y">=mm/dd/YYYY</option>
+            <option value="%d/%m/%Y">=dd/mm/YYYY</option>
+            <option value="%Y/%d/%m">=YYYY/dd/mm</option>
+            <option value="%Y/%m/%d">=YYYY/mm/dd</option>
+
+            <option value="%m-%d-%Y">=mm-dd-YYYY</option>
+            <option value="%d-%m-%Y">=dd-mm-YYYY</option>
+            <option value="%Y-%d-%m">=YYYY-dd-mm</option>
+            <option value="%Y-%m-%d">=YYYY-mm-dd</option>
+        </select>
+        <button class="btn btn-dark" onclick="changedate()">apply</button>
+        <button class="btn btn-info" onclick="location.reload()"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-clockwise" viewBox="0 0 16 16">
+  <path fill-rule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/>
+  <path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/>
+</svg></button>
+    
+    </div></li>
+</ol>
+
+
+
+
+
+<script>
+
+    function Helpbutton(s){
+       
+        let token=document.getElementById("flexSwitchCheckChecked").value;
+        $.ajax({
+            type: "POST",
+            url: `/HelpChange?status=${s}&token=${token}`,
+        });
+
+    }
+
+function changedate(){
+       
+        let token=document.getElementById("token").value;
+        let dateformat=document.getElementById("dateformat").value;
+$.ajax({
+            type: "GET",
+            url: `/changedate?dateformat=${dateformat}&token=${token}`,
+
+        });
+document.getElementById("alert").innerHTML=`date format is changed: ${dateformat}`;
+dateformat=document.getElementById("dateformat").value="No";
+
+        
+      
+
+    }
+
+</script>
+{% endblock body %}

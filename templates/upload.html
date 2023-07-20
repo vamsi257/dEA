@@ -1,0 +1,162 @@
+{% extends 'headfoot.html' %}
+ {% block title %}
+ <link rel="stylesheet" href="{{ url_for('static', filename='css/upload.css') }}">
+ <style>
+  .select-scheduler label{
+  width:100px;
+  height:50px;
+  box-sizing:border-box;
+  border:3px solid;
+  float:left;
+  border-radius:100px;
+  position:relative;
+  cursor:pointer;
+  transition:.3s ease;
+}
+.select-scheduler input[type=checkbox]:checked + label{
+  background:#55e868;
+}
+.select-scheduler input[type=checkbox]:checked + label:before{
+  left:50px;
+}
+.select-scheduler label:before{
+  transition:.3s ease;
+  content:'';
+  width:40px;
+  height:40px;
+  position:absolute;
+  background:white;
+  left:2px;
+  top:2px;
+  box-sizing:border-box;
+  border:3px solid;
+  color:black;
+  border-radius:100px;
+}
+.select-scheduler #choose-scheduler {
+  display: none;
+}
+ </style>
+
+ <title>DataExtractor | Upload</title>
+ {% endblock title %}
+ {% block body %}
+     <br><br><br>
+  {% for message in get_flashed_messages() %}
+    <div class="alert alert-warning alert-dismissible fade show" role="alert" onclick="closeAlert(this)">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+{% endfor %}
+
+<script>
+    function closeAlert(alertElement) {
+        alertElement.classList.remove("show");
+        setTimeout(function() {
+            alertElement.style.display = "none";
+        }, 500);
+    }
+</script>
+
+  <div class="alert alert-success container my-3" role="alert" id="hide">
+    Folder in process...
+  </div>
+        <div class="container2">
+          
+               <form method='POST' enctype='multipart/form-data' class="mx-3">
+                <div class="card">
+                  <h3>Upload Folder</h3>
+                  <div class="drop_box mx-3">
+                    <header>
+                      <h4>Select Folder here</h4>
+                    </header>
+                    <p>Files Supported: PDFS/Images</p>
+                    {{form.hidden_tag()}}
+                    {{form.file(class_="form-control",webkitdirectory="true", id="convertbutton")}}
+                    
+                   
+                    <br>
+                    <label>Choose option</label>
+                    <select name="option" id="selectoption" class="form-select my-3 md-2">
+                      
+                      <option value="1"> without cloud vision</option>
+                      <option value="2">cloud vision</option>
+                    </select>
+
+                  <div class="select-scheduler" style="display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  flex-direction: row;
+                  padding: 10px;">
+                  <span ><strong>Scheduler: &nbsp </strong></span>
+                  <input id="choose-scheduler" type="checkbox" value="Checked" name="choose-scheduler" />
+                  <label for="choose-scheduler"></label>
+
+                  </div>
+
+                  <div style="display: flex;">
+                  <label htmlFor="date-input">Date: &nbsp</label>
+                  <input
+                  type="date"
+                  id="date-input"
+                  name="date"
+                  placeholder="yyyy-mm-dd"
+                  value="2023-03-09"
+                  />
+
+                  <input
+                  type="time"
+                  id="time-input"
+                  name="time"  
+                  value="00:00"                  
+                  />
+                  </div>
+
+                    
+                    <!--<input type="file" class="form-control" placeholder="put jsonfile" id="jsonfile" name="jsonfile">-->
+                    {{form.jsonfile(class_="form-control", id="jsonfile", accept="application/JSON",onchange="filestatus()")}}
+                    <p id="note"></p>
+
+                    <button type="submit" class="btn btn-dark" onclick="convert()" id="button-convert">Convert</button>
+                   
+                  </div>
+                  <br><br>
+                  <br>
+                </div>
+                
+              
+        </form>
+
+
+
+        
+    </div>
+    
+    <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasRight" aria-labelledby="offcanvasRightLabel">
+      <div class="offcanvas-header">
+        <h5 id="offcanvasRightLabel">Instructions</h5>
+        <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+      </div>
+      <div class="offcanvas-body">
+        <li>You need to upload a folder from the system and select option from the option list.
+        If you select Without Cloud Vision you can extract data directly but it's not extract handwritten data properly. 
+        If you select With Cloud vision so you can extract handwritten data and normal data from the pdfs/images but you need to upload json file of cloud vision.</li>
+      </div>
+    </div>
+    <script>
+       var now = new Date();
+
+  // Set the value of the date input to today's date in yyyy-mm-dd format
+  var dateInput = document.getElementById('date-input');
+  dateInput.value = now.getFullYear() + '-' + (now.getMonth() + 1).toString().padStart(2, '0') + '-' + now.getDate().toString().padStart(2, '0');
+
+  // Set the value of the time input to the current time in 24-hour format
+  var timeInput = document.getElementById('time-input');
+  timeInput.value = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+    </script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
+    <script src="{{ url_for('static', filename='js/upload.js') }}"></script>
+   
+
+    {% endblock body %}
+ 
