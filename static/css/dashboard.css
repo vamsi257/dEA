@@ -1,0 +1,73 @@
+ /* Animation*/
+ .col {
+    animation: fadeInAnimation ease 2s;
+    animation-iteration-count: 1;
+    animation-fill-mode: forwards;
+  }
+
+  @keyframes fadeInAnimation {
+    0% {
+      opacity: 0;
+    }
+
+    100% {
+      opacity: 1;
+    }
+  }
+
+  .shadow-lg:hover {
+
+    cursor: pointer;
+    border-radius: 50%;
+  }
+
+  #msg {
+    display: none;
+  }
+  #image,.popup-imag,.popup-pdf{
+    display: none;
+  }
+
+  .popup-imag,.popup-pdf{
+    position: fixed;
+    top:0;
+    left:0;
+    background: black;
+    height: 100%;
+    width:100%;
+    z-index:100;
+  }
+  .popup-imag span,.popup-pdf span{
+   position: absolute;
+   top: 0;
+   right: 10px;
+   font-size: 60px;
+   font-weight: bolder;
+   color: white;
+   cursor: pointer;
+   z-index:100;
+  }
+
+  .popup-imag img{
+    position: absolute;
+    top:50%;
+    left:50%; 
+    transform: translate(-50%,-40%);
+    border:50px solid rgb(37, 30, 30);
+    border-radius: 5px;
+    width:750px;
+    overflow: scroll;
+    object-fit: cover;
+
+  }
+  .popup-pdf iframe{
+    position: absolute;
+    top:50%;
+    left:50%;
+    transform: translate(-50%,-50%);
+    border:5px solid white;
+    border-radius: 5px;
+    width:750px;
+    height:500px;
+    object-fit: cover;
+  }

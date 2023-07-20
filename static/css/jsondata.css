@@ -1,0 +1,8 @@
+#savetxt {
+    padding: 50px;
+  }
+
+  .table-view {
+    height: 70vh;
+    overflow-y: scroll;
+  }
