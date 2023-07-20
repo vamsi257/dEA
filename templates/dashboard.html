@@ -1,0 +1,53 @@
+{% extends 'headfoot.html' %}
+{% block title %}
+<title>Dashboard</title>
+{% endblock title %}
+
+{% block body %}
+
+<br><br><br><br><br>
+{% for message in get_flashed_messages() %}
+    <div class="alert alert-warning alert-dismissible fade show" role="alert" onclick="closeAlert(this)">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+{% endfor %}
+
+<script>
+    function closeAlert(alertElement) {
+        alertElement.classList.remove("show");
+        setTimeout(function() {
+            alertElement.style.display = "none";
+        }, 500);
+    }
+</script>
+	<h2 align="center">Dashboard</h2>
+<br>
+<br>
+<div class="container">
+	<div class="row">
+		<div class="col-8">
+
+    <strong>Name:</strong>
+	{{ data[0] }}<br/><br><br>
+
+	<strong>Id:</strong>
+	{{ data[1] }}<br/><br><br>
+
+			<strong>Username:</strong>
+	{{ data[2] }}<br/><br><br>
+
+
+	<strong>Date Joined:</strong>
+	{{ data[3] }}<br/><br><br>
+
+
+    <a href="{{ url_for('logout')}}" class="btn btn-secondary btn-sm">Logout</a>
+	<a href="{{  url_for('dashboard')}}" class="btn btn-warning btn-sm">
+		Extracted Files</a>
+			<br><br>
+
+		</div></div></div>
+
+{% endblock body %}
+{% set sticky = true %}

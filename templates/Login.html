@@ -1,0 +1,57 @@
+{% extends 'headfoot.html' %}
+{% block title %}
+<title>Login</title>
+{% endblock title %}
+{% block body %}
+<br><br><br>
+     {% for message in get_flashed_messages() %}
+    <div class="alert alert-warning alert-dismissible fade show" role="alert" onclick="closeAlert(this)">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+{% endfor %}
+
+<script>
+    function closeAlert(alertElement) {
+        alertElement.classList.remove("show");
+        setTimeout(function() {
+            alertElement.style.display = "none";
+        }, 500);
+    }
+</script>
+
+<section class="mb-5" id="a">
+        <h4 class="mb-5 text-center"><strong>LOGIN</strong></h4><br><br>
+
+        <div class="row d-flex justify-content-center">
+          <div class="col-md-6">
+            <form method="post">
+
+              <div class="form-outline col-auto">
+          {{ form.hidden_tag() }}
+          {{ form.username(class="form-control") }}
+                <label class="form-label" for="form3Example3">Username</label>
+              </div><br>
+              <br>
+              <div class="form-outline col-auto">
+                {{ form.password(class="form-control") }}
+                <label class="form-label" for="form3Example4">Password</label>
+              </div><br>
+
+              <!-- Submit button -->
+              <button type="submit" class="btn btn-primary btn-block mb-4">
+                Login
+              </button>
+              <br>
+              <br>
+              <div style="text-align: center;">
+                <label class="form-label" for="form3Example3">If You're not having account?
+                  <a href="{{  url_for('signup') }}">Register</a></label><br>
+
+
+</form>
+</div>
+</div>
+</section>
+  </div>
+  {% endblock body %}

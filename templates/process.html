@@ -1,0 +1,110 @@
+<html>
+<body>
+    <h1>Uploaded File: {{ image }}</h1>
+    <div>
+        <img id="image" src="{{ image }}" width="400" style="max-height: 100%; width: auto;">
+        <canvas id="canvas"></canvas>
+    </div>
+
+    <form id="roi-form">
+        <input type="text" id="roi-name" placeholder="ROI Name">
+        <button type="button" id="roi-button" disabled>Add ROI</button>
+    </form>
+
+    <script>
+        var canvas = document.getElementById("canvas");
+        var ctx = canvas.getContext("2d");
+        var image = document.getElementById("image");
+
+        var startX, startY, endX, endY;
+        var isDrawing = false;
+        var roiNameInput = document.getElementById("roi-name");
+        var roiButton = document.getElementById("roi-button");
+        var rois = [];
+
+        // Function to draw the rectangles
+        function drawRectangles() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(image, 0, 0);
+
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = "green";
+            for (var i = 0; i < rois.length; i++) {
+                var roi = rois[i];
+                ctx.beginPath();
+                ctx.rect(roi.startX, roi.startY, roi.endX - roi.startX, roi.endY - roi.startY);
+                ctx.stroke();
+            }
+        }
+
+        // Function to handle mouse down event
+        function handleMouseDown(e) {
+            startX = parseInt(e.clientX - canvas.getBoundingClientRect().left);
+            startY = parseInt(e.clientY - canvas.getBoundingClientRect().top);
+            isDrawing = true;
+            roiButton.disabled = true;
+        }
+
+        // Function to handle mouse move event
+        function handleMouseMove(e) {
+            if (!isDrawing) return;
+
+            endX = parseInt(e.clientX - canvas.getBoundingClientRect().left);
+            endY = parseInt(e.clientY - canvas.getBoundingClientRect().top);
+
+            drawRectangles();
+        }
+
+        // Function to handle mouse up event
+        function handleMouseUp(e) {
+            if (!isDrawing) return;
+
+            endX = parseInt(e.clientX - canvas.getBoundingClientRect().left);
+            endY = parseInt(e.clientY - canvas.getBoundingClientRect().top);
+
+            isDrawing = false;
+            roiButton.disabled = false;
+
+            // Ensure startX is less than endX and startY is less than endY
+            if (startX > endX) {
+                var temp = startX;
+                startX = endX;
+                endX = temp;
+            }
+            if (startY > endY) {
+                var temp = startY;
+                startY = endY;
+                endY = temp;
+            }
+
+            // Add the new ROI to the rois array
+            var roi = {
+                startX: startX,
+                startY: startY,
+                endX: endX,
+                endY: endY,
+                name: roiNameInput.value.trim()
+            };
+            rois.push(roi);
+
+            // Clear the ROI name input field
+            roiNameInput.value = "";
+
+            // Redraw all ROIs
+            drawRectangles();
+        }
+
+        // Add event listeners
+        canvas.addEventListener("mousedown", handleMouseDown);
+        canvas.addEventListener("mousemove", handleMouseMove);
+        canvas.addEventListener("mouseup", handleMouseUp);
+
+        // Function to handle ROI button click event
+        roiButton.addEventListener("click", function() {
+            if (roiNameInput.value.trim() !== "") {
+                handleMouseUp(event);
+            }
+        });
+    </script>
+</body>
+</html>

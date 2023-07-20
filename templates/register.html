@@ -1,0 +1,68 @@
+{% extends 'headfoot.html' %}
+{% block title %}
+<title>Registration</title>
+
+{% endblock title %}
+
+{% block body %}
+    <br><br><br>
+
+        {% for message in get_flashed_messages() %}
+    <div class="alert alert-warning alert-dismissible fade show" role="alert" onclick="closeAlert(this)">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+{% endfor %}
+
+<script>
+    function closeAlert(alertElement) {
+        alertElement.classList.remove("show");
+        setTimeout(function() {
+            alertElement.style.display = "none";
+        }, 500);
+    }
+</script>
+
+<br><br><br><br>
+<div class="container">
+<section class="mb-5" id="a">
+        <h4 class="mb-5 text-center"><strong>Register</strong></h4><br>
+
+        <div class="row d-flex justify-content-center">
+          <div class="col-md-6">
+            <form method="post">
+              <!-- 2 column grid layout with text inputs for the first and last names -->
+              <div class="row mb-4">
+                <div class="col">
+                  <div class="form-outline">
+                    {{ form.Name(class="form-control")}}
+                    <label class="form-label" for="form3Example1">Name</label>
+                  </div><br>
+
+                  <div class="form-outline">
+                  {{ form.hidden_tag() }}
+                    {{ form.username(class="form-control")}}
+                  <label class="form-label" for="form3Example98">Username</label>
+                </div><br>
+
+              <div class="form-outline col-auto">
+                {{ form.password(class="form-control") }}
+                <label class="form-label" for="form3Example4">Password</label>
+              </div><br>
+
+              {{ form.submit(class="btn btn-primary btn-block mb-4" )}}
+              <br>
+              <br>
+              <div style="text-align: center;"><label class="form-label" for="form3Example3">
+                If You're already having account?<a href="{{  url_for('login') }}">Login</a></label></div>
+
+</div>
+</div>
+              </form>
+          </div>
+        </div>
+</section>
+</div>
+
+        {% endblock body %}
+{% set sticky = True %}
