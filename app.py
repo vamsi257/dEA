@@ -1,7 +1,6 @@
 import cv2
-import pickle
 import jwt
-from flask import Flask, render_template, request, redirect, url_for, abort, flash, session, jsonify
+from flask import Flask, render_template, request, redirect, url_for, abort, flash, send_file, session, jsonify
 import os
 from flask_login import UserMixin, logout_user, current_user, login_user, LoginManager, login_required
 from wtforms import StringField, PasswordField, SubmitField, MultipleFileField
@@ -25,11 +24,16 @@ from task_model import save_task_to_database
 import DataExtractNormal
 import pandas as pd
 from pdf2image import convert_from_path
+from apscheduler.schedulers.background import BackgroundScheduler
 from page_limiter import page_limiter
 
+# Define a list to store coordinates (regions of interest).
 roi_coordinates = []
 
+# Create a Flask app instance.
 app = Flask(__name__)
+
+# Configuration settings for the app.
 app.config["IMAGES"] = "./images"
 app.config["LABELS"] = []
 app.config["HEAD"] = 0
@@ -46,14 +50,17 @@ app.config["SECRET_KEY"] = "supersecretkeybkiran"
 app.config["UPLOAD_FOLDER"] = "./upload"
 app.config["UPLOAD_FOLDER_NORMAL"] = "upload_normal"
 app.config['poppler_path'] = r"D:\work1\poppler-0.67.0_x86\poppler-0.67.0\bin"
+# Initialize the database using SQLAlchemy.
 db = SQLAlchemy(app)
 login_manager = LoginManager()  # To manage Login
 login_manager.init_app(app)
 login_manager.login_view = "login"
+
+# Create a Bcrypt instance for password hashing.
 bcrypt = Bcrypt(app)
 
-
-@login_manager.user_loader  # To load the User
+# Function to load the User object using user_id.
+@login_manager.user_loader
 def load_user(user_id):
     return tbl_user.query.get(int(user_id))
 
@@ -118,7 +125,7 @@ class LoginForm(FlaskForm):
     )
     submit = SubmitField("Login")
 
-
+# Define a FlaskForm for file upload.
 class UploadFileForm(FlaskForm):
     file = MultipleFileField(validators=[InputRequired()])
     Temp_name = StringField(validators=[InputRequired(), Length(min=4, max=20)])
@@ -127,9 +134,9 @@ class UploadFileForm(FlaskForm):
 # Home page
 @app.route('/')
 def home():
-    return render_template('index.html')
+    return render_template('index.html', current_year=datetime.now().year)
 
-
+# Dashboard route accessible after login, showing user information.
 @app.route('/dashboard')
 @login_required
 def dashboard():
@@ -147,12 +154,15 @@ def signup():
     current_year = datetime.now().year
     form = RegisterForm()
     if request.method == 'POST':
+         # Get user details from the registration form.
         username = form.username.data
         user = tbl_user.query.filter_by(username=username).first()
         if user:
+            # If user already exists, show a flash message.
             flash("You already having the account on this email!")
             return render_template("login.html", current_year=current_year)
         else:
+            # Hash the password and create a new user in the database.
             hashed_password = bcrypt.generate_password_hash(form.password.data)
             hostname = socket.gethostname()
             IPadd = socket.gethostbyname(hostname)
@@ -165,8 +175,8 @@ def signup():
             )
             db.session.add(new_user)
             db.session.commit()
-            return redirect(url_for("login"))
-    return render_template("register.html", form=form)
+            return redirect(url_for("login", current_year=current_year))
+    return render_template("register.html", form=form, current_year=current_year)
 
 
 # login
@@ -175,20 +185,22 @@ def login():
     current_year = datetime.now().year
     form = LoginForm()
     if form.validate_on_submit():
+         # Get user details from the login form.
         user = tbl_user.query.filter_by(username=form.username.data).first()
         hostname = socket.gethostname()
         IPadd = socket.gethostbyname(hostname)
         if user:
             if user.ip == "None":
+                # Update user's IP address in the database.
                 user.ip = str(IPadd)
                 db.session.add(user)
                 db.session.commit()
-                return redirect(url_for('login'))
+                return redirect(url_for('login', current_year=current_year))
             elif user.ip != IPadd:
+                 # If user's IP address does not match, show an error message.
                 abort(400, "You cannot access this application, contact to owner")
-            elif bcrypt.check_password_hash(
-                    user.password, form.password.data
-            ) and user.ip == str(IPadd):
+            elif bcrypt.check_password_hash(user.password, form.password.data) and user.ip == str(IPadd):
+                # If the password is correct and IP address matches, log the user in.
                 login_user(user)
                 token = jwt.encode(
                     {
@@ -205,7 +217,7 @@ def login():
             flash("please enter correct details")
     return render_template("Login.html", form=form, current_year=current_year)
 
-
+# Route to save data received via AJAX to JSON and CSV files.
 @app.route('/save-data', methods=['POST'])
 def save_data():
     data = request.get_json()  # Receive the data from the AJAX request
@@ -213,12 +225,12 @@ def save_data():
     save_as_csv(data)
     return jsonify({'message': 'Data saved successfully'})
 
-
+# Function to save data as JSON file.
 def save_as_json(data):
     with open('data.json', 'w') as file:
         json.dump(data, file)
 
-
+# Function to save data as CSV file.
 def save_as_csv(data):
     with open('data.csv', 'w', newline='') as file:
         writer = csv.writer(file)
@@ -226,22 +238,22 @@ def save_as_csv(data):
         for area in data:
             writer.writerow([area['x'], area['y']])  # Replace with the appropriate data fields
 
-
+# Decorator to token authentication for some routes.
 def token_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         token = request.args.get("token")
         if not token:
-            return render_template("alert.html", message="Token is missing")
+            return render_template("alert.html", message="Token is missing", current_year=datetime.now().year)
         try:
             data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
         except:
-            return render_template("alert.html", message="Token is invalid")
+            return render_template("alert.html", message="Token is invalid", current_year=datetime.now().year)
         return f(*args, **kwargs)
 
     return decorated
 
-
+# Route to log out the user.
 @app.route('/logout', methods=['GET', 'POST'])
 @login_required
 def logout():
@@ -250,7 +262,7 @@ def logout():
     flash("You Have Been Logged Out!")
     return redirect(url_for('login', current_year=current_year))
 
-
+# Route for managing templates and image/PDF uploads.
 @app.route("/template", methods=["GET", "POST"])
 @login_required
 def template():
@@ -262,10 +274,11 @@ def template():
     app.config["TEMP_NAME"] = []
     form = UploadFileForm()
     if request.method == "POST":
+        # Process uploaded files and store them in the appropriate folders.
         files = form.file.data
         if len(files) == 0:
             flash('No files selected')
-            return redirect(url_for('dashboard', token=token))
+            return redirect(url_for('template', token=token, current_year=current_year))
         else:
             shutil.rmtree(r"./images")
             if os.path.exists("out.csv"):
@@ -284,6 +297,7 @@ def template():
                 filename = secure_filename(file.filename)
                 extension = os.path.splitext(filename)[1]
                 if "pdf" not in extension.lower():
+                    # If the uploaded file is an image, process it and save it to the images folder.
                     file_bytes = np.asarray(bytearray(file.read()), dtype=np.uint8)
                     img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
                     new_filename = os.path.join("./images", secure_filename(os.path.splitext(filename)[0] + ".png"))
@@ -291,6 +305,7 @@ def template():
                     app.config["uploaded_files"].append(new_filename)
                     app.config["TEMP_NAME"].insert(1, "Image")
                 else:
+                    # If the uploaded file is a PDF, save it to the images folder and convert it to images.
                     file.save(os.path.join("./images", filename))
                     app.config["uploaded_files"].append(filename)
                     app.config["TEMP_NAME"].insert(1, "Pdf")
@@ -305,6 +320,7 @@ def template():
         app.config["FILES"] = files
         return redirect(f"/tagger?token={token}", code=302)
     else:
+        # Fetch data related to templates from the database.
         Data = Cordinate_Data.query.filter_by(user_id=current_user.id).all()
         d = tbl_user.query.filter_by(id=current_user.id).first()
         return render_template(
@@ -318,7 +334,7 @@ def template():
             form=form,
         )
 
-
+# Route for tagging images and PDFs with coordinates.
 @app.route("/tagger", methods=["GET", "POST"])
 @token_required
 @login_required
@@ -394,7 +410,7 @@ def tagger():
         status=int(d.status),
     )
 
-
+# Route for managing uploads of templates and image/PDF files.
 @app.route("/upload", methods=["GET", "POST"])
 @token_required
 @login_required
@@ -429,6 +445,7 @@ def upload():
         count_img = 0
         filenames = []
         if choose_scheduler:
+            # If the scheduler is chosen, save the task to the database and redirect to the thank you page.
             print("INSIDE CHOOSE")
             app.config["Data"] = []
             new_data = {}
@@ -615,5 +632,149 @@ def upload():
     return render_template("upload.html", form=form, token=token, status=int(d.status), current_year=current_year)
 
 
-if __name__ == '__main__':
-    app.run()
+# Route for changing user status
+@app.route("/HelpChange", methods=["POST", "GET"])
+@token_required
+@login_required
+def Helpchange():
+    # Get the 'token' and 'status' from the request arguments
+    token = request.args.get("token")
+    status = request.args.get("status")
+    
+    # Update the status of the user in the database
+    d = tbl_user.query.filter_by(id=current_user.id).first()
+    d.status = status
+    db.session.add(d)
+    db.session.commit()
+    
+    print("yes")
+    return redirect(url_for("setting", token=[token]))
+
+# Route for changing the date format
+@app.route("/changedate", methods=["POST", "GET"])
+def FormatChange():
+    print("hello" * 50)
+    # Get the 'token' and 'dateformat' from the request arguments
+    token = request.args.get("token")
+    dateformat = request.args.get("dateformat")
+    
+    # Update the date format of the user in the database
+    d = tbl_user.query.filter_by(id=current_user.id).first()
+    d.dateformat = str(dateformat)
+    db.session.add(d)
+    db.session.commit()
+    
+    print("yes")
+    return redirect(url_for("setting", token=[token], current_year=datetime.now().year))
+
+# Route for deleting data
+@app.route("/delete/<int:id>")
+@token_required
+@login_required
+def delete(id):
+    # Get the 'token' from the request arguments
+    token = request.args.get("token")
+    
+    # Delete data from the Cordinate_Data table for the specified user
+    d = Cordinate_Data.query.filter_by(cord_id=id, user_id=current_user.id).first()
+    db.session.delete(d)
+    db.session.commit()
+    
+    return redirect(url_for("template", token=[token], current_year=datetime.now().year))
+
+# Route for removing a label
+@app.route("/remove/<id>")
+@token_required
+@login_required
+def remove(id):
+    # Get the 'token' from the request arguments
+    token = request.args.get("token")
+    
+    # Remove the label with the specified id from the app configuration
+    index = int(id) - 1
+    del app.config["LABELS"][index]
+    for label in app.config["LABELS"][index:]:
+        label["id"] = str(int(label["id"]) - 1)
+    
+    return redirect(url_for("tagger", token=[token], current_year=datetime.now().year))
+
+# Route for updating label information
+@app.route("/label/<id>")
+def label(id):
+    # Get the 'token', 'name', and 'dformat' from the request arguments
+    token = request.args.get("token")
+    name = request.args.get("name")
+    dformat = request.args.get("dformat")
+    
+    # Update the label information in the app configuration
+    app.config["LABELS"][int(id) - 1]["name"] = name
+    app.config["LABELS"][int(id) - 1]["dformat"] = dformat
+    
+    return redirect(url_for("tagger", token=[token], current_year=datetime.now().year))
+
+# Route for sending images
+@app.route("/image/<f>")
+def images(f):
+    images = app.config["IMAGES"]
+    return send_file(images + rf"\{f}")
+
+# Route for downloading data as JSON
+@app.route("/download", methods=["POST", "GET"])
+@token_required
+@login_required
+def download():
+    # Get the 'token' from the request arguments
+    token = request.args.get("token")
+    
+    # Fetch user data from the database
+    d = tbl_user.query.filter_by(id=current_user.id).first()
+    Data = []
+
+    ############################# added this
+    print("✅✅✅")
+    data = app.config["Data"]
+
+    df = pd.DataFrame(data)
+    data_json = df.to_json(orient="columns")
+
+    print(df)
+
+    return render_template(
+        "JsonData.html",
+        current_year=datetime.now().year,
+        tables=df.values.tolist(),
+        columns=df.columns,
+        data=data_json,
+        token=token,
+        status=int(d.status),
+    )
+
+# Route for applying changes on a folder
+@app.route("/apply/<int:id>")
+@token_required
+@login_required
+def applyonfolder(id):
+    # Get the 'token' from the request arguments
+    token = request.args.get("token")
+    
+    # Fetch Cordinate_Data for the specified id and user
+    data = Cordinate_Data.query.filter_by(cord_id=id, user_id=current_user.id).first()
+    
+    # Write the coordinates to a CSV file named "out.csv"
+    with open("out.csv", "w") as f:
+        f.write(data.cordinates)
+    
+    return redirect(url_for("upload", token=[token], current_year=datetime.now().year))
+
+if __name__ == "__main__":
+    with app.app_context():
+        db.create_all()
+
+    from schedule import run_scheduled_tasks
+
+    scheduler = BackgroundScheduler(daemon=True)
+
+    scheduler.add_job(run_scheduled_tasks, trigger='interval', seconds=60, args=(app,))
+    scheduler.start()
+
+    app.run(debug=True, port=3000)
