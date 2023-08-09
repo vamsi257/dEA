@@ -1,0 +1,50 @@
+{% extends 'headfoot.html' %}
+{% block title %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+<title>DataExtractor | Template saved</title>
+<style>
+
+
+</style>
+{% endblock title %}
+{% block body %}
+<br><br><br>
+    {% for message in get_flashed_messages() %}
+    <div class="alert alert-warning alert-dismissible fade show" role="alert" onclick="closeAlert(this)">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+{% endfor %}
+
+<script>
+    function closeAlert(alertElement) {
+        alertElement.classList.remove("show");
+        setTimeout(function() {
+            alertElement.style.display = "none";
+        }, 500);
+    }
+</script>
+<h1 align="center">Accepted</h1>
+<br><br>
+<table class="table">
+  <thead>
+    <tr>
+      <th scope="col">Slno</th>
+        <th scope="col">CSV Filename</th>
+        <th scope="col">Date_time</th>
+		<th scope="col">#</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for d in data %}
+    <tr>
+      <th scope="row">{{ loop.index }}</th>
+        <td>{{ d.csvfilename }}</td>
+        <td>{{ d.date_time }}</td>
+        <td><a href="{{ url_for('download', id=d.id) }}" target="_blank">View</a></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+<br><br><br><br>
+{% endblock body %}

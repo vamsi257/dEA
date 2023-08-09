@@ -11,170 +11,158 @@
         {{ message }}
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
     </div>
-{% endfor %}
+    {% endfor %}
 
-<script>
-    function closeAlert(alertElement) {
-        alertElement.classList.remove("show");
-        setTimeout(function() {
-            alertElement.style.display = "none";
-        }, 500);
-    }
-</script>
+    <script>
+        function closeAlert(alertElement) {
+            alertElement.classList.remove("show");
+            setTimeout(function() {
+                alertElement.style.display = "none";
+            }, 500);
+        }
+    </script>
 
-<div class="container">
-<br>
-<br>
-<div class="container table-view">
-<h5 class="container"><b>Table View</b></h5>
+    <div class="container">
+        <br>
+        <br>
+        <div class="container table-view">
+            <h5 class="container"><b>Table View</b></h5>
 
-<table class="table table-striped" id="tableview">
-<thead>
-<tr>
-{% for col in columns %}
-<td scope="col"><b>{{ col }}</b></td>
-{% endfor %}
-</tr>
-</thead> 
+            <table class="table table-striped" id="tableview">
+                <thead>
+                    <tr>
+                        {% for col in columns %}
+                        <th scope="col"><b>{{ col }}</b></th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in tables %}
+                    <tr>
+                        {% for value in row.values() %}
+                        <td>{{ value }}</td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <br>
+        <br>
+        <h5 class="container"><b>Json View</b></h5>
+        <pre class="container shadow" id="savetxt">{{ data_json }}</pre>
 
-{% for row in tables %}
-<tr>
-{% for col in row %}
-<td>{{ col }}</td>
-{% endfor %}
-</tr>
-{% endfor %}
-</table>
+        <br>
+        <span class="btn btn-dark" id="changebutton">Transpose</span>
+        <br>
+        <br>
 
+        <label for="formGroupExampleInput" class="form-label"><b>Download extracted text</b></label>
+        <input type="text" class="form-control" id="dload-fn" placeholder="File name" value="">
+        <br>
+        <button id="dload" class="btn btn-primary" onclick="Jsonexport()">Download Json</button>
+        <button class="btn btn-primary" id="btnExportToCsv">Download CSV/Excel</button>
+    </div>
 
+    <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasRight" aria-labelledby="offcanvasRightLabel">
+        <div class="offcanvas-header">
+            <h5 id="offcanvasRightLabel">Instructions</h5>
+            <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+        </div>
+        <div class="offcanvas-body">
+            <li>You can download extracted data in json and csv/excel format using "Download Json" and "Download Excel"
+                buttons. Before clicking on the buttons, you need to assign a file name as you want.</li>
+        </div>
+    </div>
 
+    <script src="//ajax.googleapis.com/ajax/libs/jquery/2.2.4/jquery.min.js"></script>
+    <script src="//cdn.rawgit.com/rainabba/jquery-table2excel/1.1.0/dist/jquery.table2excel.min.js"></script>
 
-</div>
-<br>
-<br>
-<h5 class="container"><b>Json View</b></h5>
-<p class="container shadow " id="savetxt" value={{data}} style="white-space:pre-line">{{data}}</p>
+    <script>
+        $("span").click(function () {
+            $("table").each(function () {
+                var $this = $(this);
+                var newrows = [];
+                $this.find("tr").each(function () {
+                    var i = 0;
+                    $(this).find("td").each(function () {
+                        i++;
+                        if (newrows[i] === undefined) { newrows[i] = $("<tr></tr>"); }
+                        newrows[i].append($(this));
+                    });
+                });
+                $this.find("tr").remove();
+                $.each(newrows, function () {
+                    $this.append(this);
+                });
+            });
 
-<br>
-<span class="btn btn-dark" id="changebutton">Transpose</span>
+            return false;
+        });
 
-<br>
-<br>
+        // New download
+        const dataTable = document.getElementById("tableview");
+        const btnExportToCsv = document.getElementById("btnExportToCsv");
 
-<label for="formGroupExampleInput" class="form-label"><b>Download extracted text</b></label>
-<input type="text" class="form-control" id="dload-fn" placeholder="File name" value="">
-<br><button id="dload" class="btn btn-primary" onclick="Jsonexport()">Download Json</button>
-<button class="btn btn-primary" id="btnExportToCsv" >Download CSV/Excel</button>
-</div>
+        btnExportToCsv.addEventListener("click", () => {
+            const exporter = new TableCSVExporter(dataTable);
+            const csvOutput = exporter.convertToCSV();
+            const csvBlob = new Blob([csvOutput], { type: "text/csv" });
+            const blobUrl = URL.createObjectURL(csvBlob);
+            const anchorElement = document.createElement("a");
 
-<div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasRight" aria-labelledby="offcanvasRightLabel">
-<div class="offcanvas-header">
-<h5 id="offcanvasRightLabel">Instructions</h5>
-<button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
-</div>
-<div class="offcanvas-body">
-<li>You can download extracted data in json and csv/excel format using "Download Json" and "Download Excel"
-buttons. Before click on the buttons need to assign file name as you want.</li>
-</div>
-</div>
-<script src="//ajax.googleapis.com/ajax/libs/jquery/2.2.4/jquery.min.js">
-</script>
-<script src="//cdn.rawgit.com/rainabba/jquery-table2excel/1.1.0/dist/jquery.table2excel.min.js">
-</script>
+            anchorElement.href = blobUrl;
+            anchorElement.download = `${document.getElementById("dload-fn").value}.csv`;
+            anchorElement.click();
 
-<script>
-$("span").click(function(){
-$("table").each(function() {
-var $this = $(this);
-var newrows = [];
-$this.find("tr").each(function(){
-var i = 0;
-$(this).find("td").each(function(){
-i++;
-if(newrows[i] === undefined) { newrows[i] = $("<tr></tr>"); }
-newrows[i].append($(this));
-});
-});
-$this.find("tr").remove();
-$.each(newrows, function(){
-$this.append(this);
-});
-});
+            setTimeout(() => {
+                URL.revokeObjectURL(blobUrl);
+            }, 500);
+        });
 
-return false;
-});
+        class TableCSVExporter {
+            constructor(table, includeHeaders = true) {
+                this.table = table;
+                this.rows = Array.from(table.querySelectorAll("tr"));
 
+                if (!includeHeaders && this.rows[0].querySelectorAll("td").length) {
+                    this.rows.shift();
+                }
+            }
 
+            convertToCSV() {
+                const lines = [];
+                const numCols = this._findLongestRowLength();
 
-//new download
+                for (const row of this.rows) {
+                    let line = "";
 
-const dataTable = document.getElementById("tableview");
-const btnExportToCsv = document.getElementById("btnExportToCsv");
+                    for (let i = 0; i < numCols; i++) {
+                        if (row.children[i] !== undefined) {
+                            line += TableCSVExporter.parseCell(row.children[i]);
+                        }
 
-btnExportToCsv.addEventListener("click", () => {
-const exporter = new TableCSVExporter(dataTable);
-const csvOutput = exporter.convertToCSV();
-const csvBlob = new Blob([csvOutput], { type: "text/csv" });
-const blobUrl = URL.createObjectURL(csvBlob);
-const anchorElement = document.createElement("a");
+                        line += (i !== (numCols - 1)) ? "," : "";
+                    }
 
-anchorElement.href = blobUrl;
-anchorElement.download = `${document.getElementById("dload-fn").value}.csv`;
-anchorElement.click();
+                    lines.push(line);
+                }
 
-setTimeout(() => {
-URL.revokeObjectURL(blobUrl);
-}, 500);
-});
+                return lines.join("\n");
+            }
 
+            _findLongestRowLength() {
+                return this.rows.reduce((l, row) => row.childElementCount > l ? row.childElementCount : l, 0);
+            }
 
-class TableCSVExporter {
-constructor (table, includeHeaders = true) {
-this.table = table;
-this.rows = Array.from(table.querySelectorAll("tr"));
-
-if (!includeHeaders && this.rows[0].querySelectorAll("td").length) {
-this.rows.shift();
-}
-}
-
-convertToCSV () {
-const lines = [];
-const numCols = this._findLongestRowLength();
-
-for (const row of this.rows) {
-let line = "";
-
-for (let i = 0; i < numCols; i++) {
-if (row.children[i] !== undefined) {
-line += TableCSVExporter.parseCell(row.children[i]);
-}
-
-line += (i !== (numCols - 1)) ? "," : "";
-}
-
-lines.push(line);
-}
-
-return lines.join("\n");
-}
-
-_findLongestRowLength () {
-return this.rows.reduce((l, row) => row.childElementCount > l ? row.childElementCount : l, 0);
-}
-
-static parseCell (tableCell) {
-let parsedValue = tableCell.textContent;
-
-// Replace all double quotes with two double quotes
-parsedValue = parsedValue.replace(/"/g, `""`);
-
-// If value contains comma, new-line or double-quote, enclose in double quotes
-parsedValue = /[",\n]/.test(parsedValue) ? `"${parsedValue}"` : parsedValue;
-
-return parsedValue;
-}
-}
-
-</script>
+            static parseCell(tableCell) {
+                let parsedValue = tableCell.textContent;
+                parsedValue = parsedValue.replace(/"/g, `""`);
+                parsedValue = /[",\n]/.test(parsedValue) ? `"${parsedValue}"` : parsedValue;
+                return parsedValue;
+            }
+        }
+    </script>
+    <br><br>
 {% endblock body %}
+{% set sticky = True %}

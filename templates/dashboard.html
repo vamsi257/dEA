@@ -43,8 +43,7 @@
 
 
     <a href="{{ url_for('logout')}}" class="btn btn-secondary btn-sm">Logout</a>
-	<a href="{{  url_for('dashboard')}}" class="btn btn-warning btn-sm">
-		Extracted Files</a>
+            <a href="{{ url_for('download_list', token=current_user.token)}}" class="btn btn-warning btn-sm">Extracted Files</a>
 			<br><br>
 
 		</div></div></div>

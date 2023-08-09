@@ -1,10 +1,8 @@
 {% extends 'headfoot.html' %}
 {% block title %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
-<title>DataExtractor</title>
+<title>DataExtractor | Home</title>
 {% endblock title %}
-<br><br><br>
-
 {% block body %}
     {% for message in get_flashed_messages() %}
     <div class="alert alert-warning alert-dismissible fade show" role="alert" onclick="closeAlert(this)">
@@ -12,7 +10,7 @@
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
     </div>
 {% endfor %}
-
+<br><br><br>
 <script>
     function closeAlert(alertElement) {
         alertElement.classList.remove("show");
@@ -22,12 +20,11 @@
     }
 </script>
   <div class="container text-center my-5">
-  <br><br><br><br><br>
 
     <div class="col">
       <div class="shadow-lg p-3 mb-5 bg-body rounded">
         <p><b>SELECT TEMPLATE (images/pdfs) </b></p>
-        <form enctype="multipart/form-data" action="{{ url_for('template') }}" method="post">
+        <form enctype="multipart/form-data" method="post">
           <div class="input-group">
             <input id="file" name="file" type="file" multiple class="form-control" accept=".pdf,.jpg,.png,.tiff,.tif,.PDF,.JPEG,.jpeg" required/>
 <input type="text" placeholder="Enter Template Name Here" name="Temp_name" class="form-control" required>
@@ -41,6 +38,192 @@
           </div>
         </form>
 
-      </div></div></div>
+      </div>
 
-          {% endblock body %}
+      <h5>Or</h5>
+     <br>
+
+ <form method='POST' enctype='multipart/form-data' class="mx-3 shadow-lg p-3 mb-5 bg-body rounded">
+                <div class="card">
+
+
+                    <header>
+                      <p><b>SELECT FOLDER HERE</b></p>
+                    </header>
+                    <p>Files Supported: PDFS/Images</p>
+ <div class="input-group px-md-5">
+                    {{form.hidden_tag()}}
+                    {{form.file(class_="form-control",webkitdirectory="true", id="convertbutton")}}
+
+
+
+
+                    <button type="submit" class="btn btn-dark" onclick="convert()" id="button-convert"><b>Convert &#8594</b></button>
+
+                  </div>
+                  <br><br>
+                  <br>
+                </div>
+
+
+        </form>
+      <h5 class="container"><b>Saved Templates({{total}})</b></h5><br>
+
+
+
+      {%if Data%}
+      <p class="text-dark" id="basic-addon2"><b>Search Template Name</b></p>
+      <div class="input-group mb-3">
+
+        <input type="text" class="form-control" placeholder="Search template name" aria-label="Recipient's username"
+          aria-describedby="basic-addon2" id="Searchinput" onkeyup="Search()">
+
+      </div>
+    </div>
+
+  </div>
+
+  </div>
+
+  </div>
+
+  <table class="table table-striped container" id="SavedTable">
+    <thead>
+      <tr>
+        <th scope="col">SR NO</th>
+        <th scope="col">Template Name</th>
+        <th scope="col">Date</th>
+        <th scope="col">Time</th>
+        <th scope="col">Day</th>
+        <th scope="col">Template format</th>
+        <th scope="col">Apply on folder</th>
+        <!--<th scope="col">Edit</th>-->
+        <th scope="col">Delete</th>
+
+
+      </tr>
+      <th id="msg">
+        <div class="alert alert-primary" role="alert">
+          Not Found
+        </div>
+      </th>
+    </thead>
+    <tbody class="imgs">
+
+
+
+
+      {%for d in Data%}
+
+      <tr>
+
+        <th scope="row">{{loop.index}}</th>
+        <td scope="col">{{d.Tem_name}}</td>
+        <td scope="col">{{d.Date}}</td>
+        <td scope="col">{{d.Time}}</td>
+        <td scope="col">{{d.Day}}</td>
+        <td scope="col">{{d.Tem_format}}</td>
+
+
+
+        <div class="popup-imag">
+          <span>&times;</span>
+          <img src="{{ d.filename }}" >
+        </div>
+
+        <div class="popup-pdf">
+          <span>&times;</span>
+          <iframe src="{{ d.filename }}"></iframe>
+        </div>
+
+        <td><b class="btn btn-dark"><a href="/apply/{{d.cord_id}}?token={{token}}" class="nav-link"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-box-arrow-up-right" viewBox="0 0 16 16">
+          <path fill-rule="evenodd" d="M8.636 3.5a.5.5 0 0 0-.5-.5H1.5A1.5 1.5 0 0 0 0 4.5v10A1.5 1.5 0 0 0 1.5 16h10a1.5 1.5 0 0 0 1.5-1.5V7.864a.5.5 0 0 0-1 0V14.5a.5.5 0 0 1-.5.5h-10a.5.5 0 0 1-.5-.5v-10a.5.5 0 0 1 .5-.5h6.636a.5.5 0 0 0 .5-.5z"/>
+          <path fill-rule="evenodd" d="M16 .5a.5.5 0 0 0-.5-.5h-5a.5.5 0 0 0 0 1h3.793L6.146 9.146a.5.5 0 1 0 .708.708L15 1.707V5.5a.5.5 0 0 0 1 0v-5z"/>
+        </svg></a></b></td>
+
+
+
+        <!--<td><b class="btn btn-dark"><a href="/delete/{{d.cord_id}}?token={{token}}"
+          class="nav-link"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-pencil" viewBox="0 0 16 16">
+            <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"/>
+          </svg></a></b></td>-->
+
+        <td><b class="btn btn-danger"><a href="/delete/{{d.cord_id}}?token={{token}}"
+              class="nav-link"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash3-fill" viewBox="0 0 16 16">
+                <path d="M11 1.5v1h3.5a.5.5 0 0 1 0 1h-.538l-.853 10.66A2 2 0 0 1 11.115 16h-6.23a2 2 0 0 1-1.994-1.84L2.038 3.5H1.5a.5.5 0 0 1 0-1H5v-1A1.5 1.5 0 0 1 6.5 0h3A1.5 1.5 0 0 1 11 1.5Zm-5 0v1h4v-1a.5.5 0 0 0-.5-.5h-3a.5.5 0 0 0-.5.5ZM4.5 5.029l.5 8.5a.5.5 0 1 0 .998-.06l-.5-8.5a.5.5 0 1 0-.998.06Zm6.53-.528a.5.5 0 0 0-.528.47l-.5 8.5a.5.5 0 0 0 .998.058l.5-8.5a.5.5 0 0 0-.47-.528ZM8 4.5a.5.5 0 0 0-.5.5v8.5a.5.5 0 0 0 1 0V5a.5.5 0 0 0-.5-.5Z"/>
+              </svg></a></b></td>
+      </tr>
+      {%endfor%}
+
+    </tbody>
+  </table>
+  {% else %}
+
+  <div class="alert alert-danger" role="alert">
+    Templates are not available
+  </div>
+
+
+  {% endif %}
+
+
+
+
+
+
+  <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasRight" aria-labelledby="offcanvasRightLabel">
+    <div class="offcanvas-header">
+      <h5 id="offcanvasRightLabel">Instructions</h5>
+      <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <div class="offcanvas-body">
+      <li><b>Apply on folder</b>: It is use to apply previous template on the new folder.</li>
+      <br>
+      <li><b>Delete</b>: It is use to delete particular template from the table.</li>
+      <br>
+      <li><b>Select Template(images/pdfs)</b>: This section is basically use for the mark new template. you need to
+        select template(image or pdf) from the system and click on the Mark new template button.</li>
+      <br>
+      <li><b>Logout</b>:It is use to logout from the application.</li>
+    </div>
+  </div>
+ <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+
+<script>
+  document.querySelectorAll(".imgs span").forEach(image =>{
+    image.onclick=()=>{
+      document.querySelector('.popup-imag').style.display="block";
+      document.querySelector('.popup-pdf').style.display="none";
+      document.querySelector('.popup-imag img').src=image.getAttribute("value");
+    }
+
+document.querySelector('.popup-imag span').onclick =()=>{
+      document.querySelector('.popup-imag').style.display="none";
+     }
+
+     document.querySelector('.popup-pdf span').onclick =()=>{
+      document.querySelector('.popup-pdf').style.display="none";
+     }
+  });
+    document.querySelectorAll(".imgs button").forEach(pdf =>{
+      pdf.onclick=()=>{
+         document.querySelector('.popup-pdf').style.display="block";
+        document.querySelector('.popup-imag').style.display="none";
+
+        document.querySelector('.popup-pdf iframe').src=pdf.getAttribute("value");
+      }
+
+   document.querySelector('.popup-imag span').onclick =()=>{
+    document.querySelector('.popup-imag').style.display="none";
+   }
+
+
+   document.querySelector('.popup-pdf span').onclick =()=>{
+    document.querySelector('.popup-pdf').style.display="none";
+   }
+
+  });
+</script>
+
+  {% endblock body %}
+{% set sticky = True %}

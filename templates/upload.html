@@ -64,7 +64,7 @@
         <div class="container2">
           
                <form method='POST' enctype='multipart/form-data' class="mx-3">
-                <div class="card">
+                <div class="card" style="height: auto;">
                   <h3>Upload Folder</h3>
                   <div class="drop_box mx-3">
                     <header>
@@ -78,7 +78,6 @@
                     <br>
                     <label>Choose option</label>
                     <select name="option" id="selectoption" class="form-select my-3 md-2">
-                      
                       <option value="1"> without cloud vision</option>
                       <option value="2">cloud vision</option>
                     </select>
@@ -159,4 +158,5 @@
    
 
     {% endblock body %}
+{% set sticky = True %}
  
