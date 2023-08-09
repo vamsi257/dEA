@@ -1,31 +1,38 @@
 import cv2
 import jwt
-from flask import Flask, render_template, request, redirect, url_for, abort, flash, send_file, session, jsonify
-import os
+from flask import Flask, render_template, request, redirect, url_for, abort, flash, send_file, jsonify, \
+    send_from_directory
 from flask_login import UserMixin, logout_user, current_user, login_user, LoginManager, login_required
-from wtforms import StringField, PasswordField, SubmitField, MultipleFileField
-from wtforms.validators import InputRequired, Length, ValidationError
+from wtforms import StringField, PasswordField, SubmitField, MultipleFileField, FileField
+from wtforms.validators import InputRequired, Length
 from flask_wtf import FlaskForm
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, timedelta
+from sqlalchemy.orm.exc import NoResultFound
 from pytz import timezone
 from flask_bcrypt import Bcrypt
 import socket
 from functools import wraps
 import pymysql
 import base64
-import numpy as np
+import datetime
 import shutil
-import csv
 import json
 import uuid
 from werkzeug.utils import secure_filename
-from task_model import save_task_to_database
-import DataExtractNormal
 import pandas as pd
 from pdf2image import convert_from_path
 from apscheduler.schedulers.background import BackgroundScheduler
 from page_limiter import page_limiter
+from schedule import run_scheduled_tasks
+import pickle
+import csv
+import uuid
+import cv2
+import pytesseract
+import threading
+import os
+from google.cloud import vision
 
 # Define a list to store coordinates (regions of interest).
 roi_coordinates = []
@@ -34,35 +41,143 @@ roi_coordinates = []
 app = Flask(__name__)
 
 # Configuration settings for the app.
-app.config["IMAGES"] = "./images"
+app.config["IMAGES"] = "./static/upload/images"
 app.config["LABELS"] = []
 app.config["HEAD"] = 0
 app.config["uploaded_files"] = []
 app.config["TEMP_NAME"] = []
 app.config["TEMP_Imagecode"] = ""
 app.config["Data"] = []
-app.config['UPLOAD_FOLDER'] = r'./uploads'  # Folder to store uploaded files
-app.config['STATIC_FOLDER'] = 'static'  # Folder to serve static files
+app.config['UPLOAD_FOLDER'] = './static/uploads'  # Folder to store uploaded files
+app.config['STATIC_FOLDER'] = './static'  # Folder to serve static files
 app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:Passw0rd123@localhost/test'  # Database connection
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
 app.config["SECRET_KEY"] = "supersecretkeybkiran"
-app.config["UPLOAD_FOLDER"] = "./upload"
+app.config["UPLOAD_FOLDER"] = "./static/upload"
 app.config["UPLOAD_FOLDER_NORMAL"] = "upload_normal"
+app.config["OUT"] = "out.csv"
 app.config['poppler_path'] = r"D:\work1\poppler-0.67.0_x86\poppler-0.67.0\bin"
+# Configure the allowed file extensions for upload
+app.config["ALLOWED_EXTENSIONS"] = {"png", "jpg", "jpeg", "gif", "pdf"}
+
 # Initialize the database using SQLAlchemy.
 db = SQLAlchemy(app)
 login_manager = LoginManager()  # To manage Login
 login_manager.init_app(app)
 login_manager.login_view = "login"
+scheduled_tasks = {}
 
 # Create a Bcrypt instance for password hashing.
 bcrypt = Bcrypt(app)
+
 
 # Function to load the User object using user_id.
 @login_manager.user_loader
 def load_user(user_id):
     return tbl_user.query.get(int(user_id))
+
+
+def detectText(content):
+    dir_list = os.listdir("./jsonfile")
+    os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = f"./jsonfile/{dir_list[0]}"
+    client = vision.ImageAnnotatorClient()
+    image = vision.Image(content=content)
+    response = client.document_text_detection(image=image)
+    texts = response.text_annotations
+    data = ""
+    for text in texts:
+        # data+=text.description
+        data += text.description
+
+        break
+    return data
+
+
+def MainImg(image_folder, option, data):
+    pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+    csv_filename = f'{uuid.uuid1()}extracted_data.csv'
+    coordinates_data = []
+    input_string = data.cordinates
+    lines = input_string.splitlines()
+    for line in lines:
+        split_values = line.split(',')
+        coordinates_data.append(split_values)
+    # Process each image in the folder
+    for image_filename in os.listdir(image_folder):
+        if image_filename.endswith(('.jpg', '.png', '.jpeg', '.tif', '.tiff')):
+            print(f"Processing image: {image_filename}")
+
+            # Define a data structure to store extracted data
+            extracted_data = {}
+            # Process each set of coordinates
+            for coord in coordinates_data:
+                _, column_title, x_min, x_max, y_min, y_max, data_type = coord
+
+                # Load the image using OpenCV
+                image = cv2.imread(os.path.join(image_folder, image_filename))
+
+                # Print image dimensions and coordinates for debugging
+                print(f"Image dimensions: {image.shape}")
+                print(f"Coordinates: x_min={x_min}, x_max={x_max}, y_min={y_min}, y_max={y_max}")
+
+                x_min = int(x_min)
+                x_max = int(x_max)
+                y_min = int(y_min)
+                y_max = int(y_max)
+
+                # Check if coordinates are within image boundaries
+                if x_min < 0 or x_max > image.shape[1] or y_min < 0 or y_max > image.shape[0]:
+                    print("Error: Coordinates are outside image boundaries")
+                    continue  # Skip this iteration
+
+                # Extract the region of interest (ROI) using coordinates
+                roi = image[y_min:y_max, x_min:x_max]
+                if option == "1":
+                    # Perform OCR on the ROI
+                    extracted_text = pytesseract.image_to_string(roi, lang='eng', config='--psm 6')
+
+                    # Add extracted data to the data structure
+                    extracted_data[column_title] = extracted_text.strip()
+                elif option == "2":
+                    # cloud vision
+                    success, image = cv2.imencode('.png', roi)
+                    content = image.tobytes()
+                    extracted_data[column_title] = detectText(content)  # Add extracted data
+
+            # Save extracted data as CSV
+            csv_file = os.path.join("./static/csvfile", csv_filename)
+            with open(csv_file, 'w', newline='') as csv_file:
+                csv_writer = csv.writer(csv_file)
+
+                # Write the CSV header
+                csv_writer.writerow(extracted_data.keys())
+
+                # Write the extracted data row
+                csv_writer.writerow(extracted_data.values())
+
+    encoded_csv_filename = csv_file.encode('utf-8')
+
+    extract = ExtractedFiles(user_id=current_user.id,
+                             csvfilename=encoded_csv_filename)
+    db.session.add(extract)
+    db.session.commit()
+
+    return csv_filename
+
+
+def schedule_extraction(image_folder, option, data, scheduled_time):
+    current_time = datetime.now()
+    extraction_time = datetime.strptime(scheduled_time, "%Y-%m-%dT%H:%M")
+
+    if extraction_time < current_time:
+        flash("Scheduled time should be in the future.")
+
+    time_difference = (extraction_time - current_time).total_seconds()
+    timer = threading.Timer(time_difference, MainImg, args=(image_folder, option, data,))
+    timer.start()
+    print(f'Scheduled{timer}')
+    scheduled_tasks[image_folder] = timer
 
 
 class tbl_user(db.Model, UserMixin):  # User table
@@ -71,9 +186,9 @@ class tbl_user(db.Model, UserMixin):  # User table
     username = db.Column(db.String(20), nullable=True, unique=True)
     password = db.Column(db.String(80), nullable=False)
     status = db.Column(db.Integer)
-    token = db.Column(db.String(1000), nullable=False)
+    token = db.Column(db.String(1000))
     dateformat = db.Column(db.String(80), nullable=False, default="No")
-    Date_time = db.Column(db.DateTime, default=datetime.now(timezone('Asia/Kolkata')))
+    Date_time = db.Column(db.DateTime, default=datetime.datetime.now(timezone('Asia/Kolkata')))
     ip = db.Column(db.String(20), default="None")
     data = db.relationship("Cordinate_Data", backref="author", lazy=True)
 
@@ -81,7 +196,45 @@ class tbl_user(db.Model, UserMixin):  # User table
         return "<tbl_user %r>" % self.User_Name
 
 
+class Task(db.Model):
+    task_id = db.Column(db.Integer, primary_key=True)
+    date = db.Column(db.String(50))
+    time = db.Column(db.String(50))
+    filenames = db.Column(db.LargeBinary)
+    filetype = db.Column(db.String(50))
+    result = db.Column(db.String(50))
+    status = db.Column(db.String(50))
+
+
+class ExtractedFiles(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer)
+    date_time = db.Column(db.String(50), default=datetime.datetime.now(timezone('Asia/Kolkata')))
+    jsonfilenames = db.Column(db.LargeBinary)
+    csvfilename = db.Column(db.LargeBinary)
+
+
+def save_task(date, time, filenames, filetype):
+    date = request.form.get("date")
+    time = request.form.get("time")
+    filenames = request.form.getlist("filenames")
+    filetype = request.form.get("filetype")
+
+    # Serialize filenames using pickle
+    serialized_filenames = pickle.dumps(filenames)
+
+    # Create a new Task object
+    new_task = Task(date=date, time=time, filenames=serialized_filenames, filetype=filetype, status='pending')
+
+    # Add the task to the database
+    db.session.add(new_task)
+    db.session.commit()
+
+    return new_task.task_id
+
+
 class Cordinate_Data(UserMixin, db.Model):  # Coordinate table
+    __tablename__ = "cordinate_data"
     cord_id = db.Column(db.Integer, primary_key=True)
     Tem_name = db.Column(db.String(80), nullable=False)
     Tem_format = db.Column(db.String(80), nullable=False)
@@ -90,6 +243,7 @@ class Cordinate_Data(UserMixin, db.Model):  # Coordinate table
     Time = db.Column(db.String(80), nullable=False)
     Day = db.Column(db.String(80), nullable=False)
     tempimage = db.Column(db.Text)
+    file = db.Column(db.Text)
     user_id = db.Column(db.Integer, db.ForeignKey("tbl_user.id"), nullable=False)
 
     def __repr__(self) -> str:
@@ -125,8 +279,10 @@ class LoginForm(FlaskForm):
     )
     submit = SubmitField("Login")
 
+
 # Define a FlaskForm for file upload.
 class UploadFileForm(FlaskForm):
+    jsonfile = FileField("jsonfile")
     file = MultipleFileField(validators=[InputRequired()])
     Temp_name = StringField(validators=[InputRequired(), Length(min=4, max=20)])
 
@@ -134,13 +290,14 @@ class UploadFileForm(FlaskForm):
 # Home page
 @app.route('/')
 def home():
-    return render_template('index.html', current_year=datetime.now().year)
+    return render_template('index.html', current_year=datetime.datetime.now().year)
+
 
 # Dashboard route accessible after login, showing user information.
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    current_year = datetime.now().year
+    current_year = datetime.datetime.now().year
     name = current_user.Name
     username = current_user.username
     date = current_user.Date_time
@@ -151,10 +308,10 @@ def dashboard():
 # registration
 @app.route("/register", methods=["GET", "POST"])
 def signup():
-    current_year = datetime.now().year
+    current_year = datetime.datetime.now().year
     form = RegisterForm()
     if request.method == 'POST':
-         # Get user details from the registration form.
+        # Get user details from the registration form.
         username = form.username.data
         user = tbl_user.query.filter_by(username=username).first()
         if user:
@@ -182,10 +339,10 @@ def signup():
 # login
 @app.route("/login", methods=["GET", "POST"])
 def login():
-    current_year = datetime.now().year
+    current_year = datetime.datetime.now().year
     form = LoginForm()
     if form.validate_on_submit():
-         # Get user details from the login form.
+        # Get user details from the login form.
         user = tbl_user.query.filter_by(username=form.username.data).first()
         hostname = socket.gethostname()
         IPadd = socket.gethostbyname(hostname)
@@ -197,7 +354,7 @@ def login():
                 db.session.commit()
                 return redirect(url_for('login', current_year=current_year))
             elif user.ip != IPadd:
-                 # If user's IP address does not match, show an error message.
+                # If user's IP address does not match, show an error message.
                 abort(400, "You cannot access this application, contact to owner")
             elif bcrypt.check_password_hash(user.password, form.password.data) and user.ip == str(IPadd):
                 # If the password is correct and IP address matches, log the user in.
@@ -205,7 +362,7 @@ def login():
                 token = jwt.encode(
                     {
                         "user": form.username.data,
-                        "exp": datetime.utcnow() + timedelta(minutes=60),
+                        "exp": datetime.datetime.utcnow() + timedelta(minutes=60),
                     },
                     app.config["SECRET_KEY"],
                 )
@@ -217,6 +374,7 @@ def login():
             flash("please enter correct details")
     return render_template("Login.html", form=form, current_year=current_year)
 
+
 # Route to save data received via AJAX to JSON and CSV files.
 @app.route('/save-data', methods=['POST'])
 def save_data():
@@ -225,10 +383,12 @@ def save_data():
     save_as_csv(data)
     return jsonify({'message': 'Data saved successfully'})
 
+
 # Function to save data as JSON file.
 def save_as_json(data):
     with open('data.json', 'w') as file:
         json.dump(data, file)
+
 
 # Function to save data as CSV file.
 def save_as_csv(data):
@@ -238,41 +398,74 @@ def save_as_csv(data):
         for area in data:
             writer.writerow([area['x'], area['y']])  # Replace with the appropriate data fields
 
+
 # Decorator to token authentication for some routes.
 def token_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         token = request.args.get("token")
         if not token:
-            return render_template("alert.html", message="Token is missing", current_year=datetime.now().year)
+            return render_template("alert.html", message="Token is missing", current_year=datetime.datetime.now().year)
         try:
             data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
         except:
-            return render_template("alert.html", message="Token is invalid", current_year=datetime.now().year)
+            return render_template("alert.html", message="Token is invalid", current_year=datetime.datetime.now().year)
         return f(*args, **kwargs)
 
     return decorated
+
 
 # Route to log out the user.
 @app.route('/logout', methods=['GET', 'POST'])
 @login_required
 def logout():
     logout_user()
-    current_year = datetime.now().year
+    current_year = datetime.datetime.now().year
     flash("You Have Been Logged Out!")
     return redirect(url_for('login', current_year=current_year))
 
-# Route for managing templates and image/PDF uploads.
+
+# Function to check if the file extension is allowed
+def allowed_file(filename):
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in app.config["ALLOWED_EXTENSIONS"]
+
+
+@app.route('/temp_success', methods=['GET', 'POST'])
+@login_required
+def temp_success():
+    current_year = datetime.datetime.now().year
+    flash("Template uploaded successfully!")
+    return render_template("temp.html", current_year=current_year)
+
+
+# Route for managing uploads of templates and image/PDF files.
 @app.route("/template", methods=["GET", "POST"])
 @login_required
 def template():
-    current_year = datetime.now().year
+    current_year = datetime.datetime.now().year
     token = current_user.token
-    app.config["IMAGES"] = "images"
+    app.config["IMAGES"] = "./static/upload/images"
     app.config["LABELS"] = []
     app.config["uploaded_files"] = []
     app.config["TEMP_NAME"] = []
+    app.config["TEMP_Imagecode"] = ""
+    app.config["Data"] = []
+    file_list = os.listdir(app.config["IMAGES"])
+
+    # Loop through the files and delete each one
+    for file_name in file_list:
+        file_path = os.path.join(app.config["IMAGES"], file_name)
+        if os.path.isfile(file_path):
+            os.remove(file_path)
     form = UploadFileForm()
+    # Open the CSV file in write mode, which will overwrite the existing data
+    with open("./out.csv", 'w', newline='') as csv_file:
+        # Create a CSV writer
+        csv_writer = csv.writer(csv_file)
+
+        # Write an empty list to the file, effectively erasing all data
+        csv_writer.writerows([])
+
     if request.method == "POST":
         # Process uploaded files and store them in the appropriate folders.
         files = form.file.data
@@ -280,43 +473,34 @@ def template():
             flash('No files selected')
             return redirect(url_for('template', token=token, current_year=current_year))
         else:
-            shutil.rmtree(r"./images")
-            if os.path.exists("out.csv"):
-                os.remove("out.csv")
-            shutil.rmtree(r"./upload")
-            shutil.rmtree(r"./jsonfile")
-            os.mkdir(r"./images")
-            os.mkdir(r"./upload")
-            os.mkdir(r"./jsonfile")
+            # Create directories if they don't exist
+            os.makedirs(os.path.join(app.config["UPLOAD_FOLDER"], "images"), exist_ok=True)
+            os.makedirs(os.path.join(app.config["UPLOAD_FOLDER"], "upload"), exist_ok=True)
+            os.makedirs(os.path.join(app.config["UPLOAD_FOLDER"], "jsonfile"), exist_ok=True)
             app.config["OUT"] = "out.csv"
-            with open("out.csv", "w") as csvfile:
-                csvfile.write("image,id,name,xMin,xMax,yMin,yMax,Format\n")
+
             tmp = form.Temp_name.data
             app.config["TEMP_NAME"].insert(0, tmp)
-            for file in files:
-                filename = secure_filename(file.filename)
-                extension = os.path.splitext(filename)[1]
-                if "pdf" not in extension.lower():
-                    # If the uploaded file is an image, process it and save it to the images folder.
-                    file_bytes = np.asarray(bytearray(file.read()), dtype=np.uint8)
-                    img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
-                    new_filename = os.path.join("./images", secure_filename(os.path.splitext(filename)[0] + ".png"))
-                    cv2.imwrite(new_filename, img)
-                    app.config["uploaded_files"].append(new_filename)
-                    app.config["TEMP_NAME"].insert(1, "Image")
-                else:
-                    # If the uploaded file is a PDF, save it to the images folder and convert it to images.
-                    file.save(os.path.join("./images", filename))
-                    app.config["uploaded_files"].append(filename)
-                    app.config["TEMP_NAME"].insert(1, "Pdf")
-                with open(os.path.join("./images", filename), "rb") as pdf_file:
-                    app.config["TEMP_Imagecode"] = base64.b64encode(pdf_file.read()).decode("UTF")
-            app.config["uploaded_files"].sort()
-            # ...
 
-        for (dirpath, dirnames, filenames) in os.walk(app.config["IMAGES"]):
+            # Process each file and save it to the appropriate folder
+            for file in files:
+                if file and allowed_file(file.filename):
+                    filename = secure_filename(file.filename)
+                    file_path = os.path.join(app.config["UPLOAD_FOLDER"], "images", filename)
+                    file.save(file_path)  # Save the file to the desired path
+                    app.config["uploaded_files"].append(filename)
+                    if "pdf" not in os.path.splitext(filename)[1].lower():
+                        app.config["TEMP_NAME"].insert(1, "Image")
+                    else:
+                        app.config["TEMP_NAME"].insert(1, "Pdf")
+                        with open(file_path, "rb") as pdf_file:
+                            app.config["TEMP_Imagecode"] = base64.b64encode(pdf_file.read()).decode("UTF")
+            app.config["uploaded_files"].sort()
+
+        for (dirpath, dirnames, filenames) in os.walk(os.path.join(app.config["UPLOAD_FOLDER"], "images")):
             files = filenames
             break
+        print("filenames:", files)
         app.config["FILES"] = files
         return redirect(f"/tagger?token={token}", code=302)
     else:
@@ -334,39 +518,44 @@ def template():
             form=form,
         )
 
+
+@app.route("/image/<filename>")
+def serve_image(filename):
+    images_folder = app.config["IMAGES"]
+    return send_from_directory(images_folder, filename)
+
+
 # Route for tagging images and PDFs with coordinates.
 @app.route("/tagger", methods=["GET", "POST"])
 @token_required
 @login_required
 def tagger():
-    current_year = datetime.now().year
+    current_year = datetime.datetime.now().year
     token = request.args.get("token")
     done = request.args.get("done")
+    image = request.args.get("image")
     if done == "Yes":
         with open(app.config["OUT"], "a") as f:
             for label in app.config["LABELS"]:
-                f.write(
-                    image
-                    + ","
-                    + label["id"]
-                    + ","
-                    + label["name"]
-                    + ","
-                    + str(round(float(label["xMin"])))
-                    + ","
-                    + str(round(float(label["xMax"])))
-                    + ","
-                    + str(round(float(label["yMin"])))
-                    + ","
-                    + str(round(float(label["yMax"])))
-                    + ","
-                    + str(label["dformat"])
-                    + "\n"
-                )
+                f.write(label["id"]
+                        + ","
+                        + label["name"]
+                        + ","
+                        + str(round(float(label["xMin"])))
+                        + ","
+                        + str(round(float(label["xMax"])))
+                        + ","
+                        + str(round(float(label["yMin"])))
+                        + ","
+                        + str(round(float(label["yMax"])))
+                        + ","
+                        + str(label["dformat"])
+                        + "\n"
+                        )
                 # coTox(image,label["id"],label["name"],round(float(label["xMin"])),round(float(label["yMin"])),round(float(label["xMax"])),round(float(label["yMax"])))
         with open(app.config["OUT"], "r") as s:
             data = s.read()
-        x = datetime.datetime.now()
+        x = datetime.datetime.now(timezone("Asia/Kolkata"))
         cordinates = data
         templateName = app.config["TEMP_NAME"][0]
         Template_format = app.config["TEMP_NAME"][1]
@@ -382,18 +571,20 @@ def tagger():
             Time=current_time,
             Day=Day,
             tempimage=app.config["TEMP_Imagecode"],
+            file=image,
             Tem_format=Template_format,
         )
         db.session.add(adddata)
         db.session.commit()
-        return redirect(url_for("upload", token=[token], current_year=current_year))
-    directory = app.config["IMAGES"]
+        with open(app.config["OUT"], "r+") as f:
+            f.truncate(0)
+        return redirect(url_for("temp_success", current_year=current_year))
     # image = app.config["FILES"][app.config["HEAD"]]
     # image=str(app.config["HEAD"])+".jpg"
     if type(app.config["uploaded_files"][app.config["HEAD"]]) == str:
-        image = os.path.join(directory, app.config["FILES"][app.config["HEAD"]])
+        image = app.config["FILES"][app.config["HEAD"]]
     else:
-        image = str(app.config["uploaded_files"][app.config["HEAD"]]) + ".jpg"
+        image = str(app.config["uploaded_files"][app.config["HEAD"]])
     labels = app.config["LABELS"]
     not_end = not (app.config["HEAD"] == len(app.config["FILES"]) - 1)
     d = tbl_user.query.filter_by(id=current_user.id).first()
@@ -401,7 +592,6 @@ def tagger():
         "tagger.html",
         current_year=current_year,
         not_end=not_end,
-        directory=directory,
         image=image,
         labels=labels,
         head=app.config["HEAD"] + 1,
@@ -410,22 +600,120 @@ def tagger():
         status=int(d.status),
     )
 
-# Route for managing uploads of templates and image/PDF files.
-@app.route("/upload", methods=["GET", "POST"])
+
+@app.route("/next")
 @token_required
 @login_required
-def upload():
-    current_year = datetime.now().year
-    choose_scheduler = None
+def next():
+    token = request.args.get("token")
+    done = request.args.get("done")
+    app.config["HEAD"] = app.config["HEAD"] + 1
+    with open(app.config["OUT"], "a") as f:
+        for label in app.config["LABELS"]:
+            f.write(label["id"]
+                    + ","
+                    + label["name"]
+                    + ","
+                    + str(round(float(label["xMin"])))
+                    + ","
+                    + str(round(float(label["xMax"])))
+                    + ","
+                    + str(round(float(label["yMin"])))
+                    + ","
+                    + str(round(float(label["yMax"])))
+                    + ","
+                    + str(label["dformat"])
+                    + "\n"
+                    )
+            # coTox(image,label["id"],label["name"],round(float(label["xMin"])),round(float(label["yMin"])),round(float(label["xMax"])),round(float(label["yMax"])))
+    app.config["LABELS"] = []
+    return redirect(url_for("tagger", token=[token], done=[done]))
+
+
+@app.route("/previous")
+@token_required
+@login_required
+def previous():
+    token = request.args.get("token")
+    done = request.args.get("done")
+    # image = app.config["FILES"][app.config["HEAD"]]
+    # image=str(app.config["HEAD"])+".jpg"
+    image = str(app.config["uploaded_files"][app.config["HEAD"]])
+
+    with open(app.config["OUT"], "a") as f:
+        for label in app.config["LABELS"]:
+            f.write(label["id"]
+                    + ","
+                    + label["name"]
+                    + ","
+                    + str(round(float(label["xMin"])))
+                    + ","
+                    + str(round(float(label["xMax"])))
+                    + ","
+                    + str(round(float(label["yMin"])))
+                    + ","
+                    + str(round(float(label["yMax"])))
+                    + ","
+                    + str(label["dformat"])
+                    + "\n"
+                    )
+            # coTox(image,label["id"],label["name"],round(float(label["xMin"])),round(float(label["yMin"])),round(float(label["xMax"])),round(float(label["yMax"])))
+    app.config["LABELS"] = []
+
+    app.config["HEAD"] = app.config["HEAD"] - 1
+    return redirect(url_for("tagger", token=[token], done=[done], image=[image]))
+
+
+@app.route("/add/<id>")
+@token_required
+@login_required
+def add(id):
+    token = request.args.get("token")
+    xMin = request.args.get("xMin")
+    xMax = request.args.get("xMax")
+    yMin = request.args.get("yMin")
+    yMax = request.args.get("yMax")
+    app.config["LABELS"].append(
+        {
+            "id": id,
+            "name": "",
+            "xMin": xMin,
+            "xMax": xMax,
+            "yMin": yMin,
+            "yMax": yMax,
+            "dformat": "",
+        }
+    )
+    return redirect(url_for("tagger", token=[token]))
+
+
+@app.route("/remove/<id>")
+@token_required
+@login_required
+def remove(id):
+    token = request.args.get("token")
+    index = int(id) - 1
+    del app.config["LABELS"][index]
+    for label in app.config["LABELS"][index:]:
+        label["id"] = str(int(label["id"]) - 1)
+    return redirect(url_for("tagger", token=[token], current_year=datetime.datetime.now().year))
+
+
+# Route for managing uploads of templates and image/PDF files.
+@app.route("/upload/<int:id>", methods=["GET", "POST"])
+@token_required
+@login_required
+def upload(id):
+    current_year = datetime.datetime.now().year
     files = None
     already_posted_files = "no"
     token = request.args.get("token")
     app.config["HEAD"] = 0
-    #######################
     date = request.form.get("date")
     time = request.form.get("time")
     choose_scheduler = request.form.get("choose-scheduler")
-    print("😊😊😊 choose-scheduler", choose_scheduler)
+    print("choose-scheduler", choose_scheduler)
+    cor_data = Cordinate_Data.query.filter_by(cord_id=id).first()
     form = UploadFileForm()
     if request.method == "POST":
         already_posted_files = "yes"
@@ -436,7 +724,7 @@ def upload():
             jsonfile.save(
                 os.path.join(
                     os.path.abspath(os.path.dirname(__file__)),
-                    "./jsonfile",
+                    "./static/jsonfile",
                     secure_filename(jsonfile.filename),
                 )
             )
@@ -452,178 +740,85 @@ def upload():
             count_img = 0
 
             for file in files:
-
                 extention = os.path.splitext(file.filename)[1]
 
                 file.filename = str(uuid.uuid4()) + extention
-                print("extention", extention, "filename", file.filename)
 
                 folderpath = os.path.join(
+
                     os.path.abspath(os.path.dirname(__file__)),
-                    app.config["UPLOAD_FOLDER"],
-                    secure_filename(file.filename),
+
+                    app.config["UPLOAD_FOLDER_NORMAL"],
+
+                    secure_filename(file.filename)
+
                 )
-                file.save(
-                    os.path.join(
-                        os.path.abspath(os.path.dirname(__file__)),
-                        app.config["UPLOAD_FOLDER"],
-                        secure_filename(file.filename),
-                    )
-                )  # Then save the file
 
-                # print(os.path.splitext(file.filename)[0],extention)
-                db_extention = "img"
-                if extention in [".pdf", ".PDF"]:
-                    db_extention = "pdf"
+                file.save(folderpath)  # Then save the file
 
-                # for file in files:
-                filenames.append(file.filename)
+            folder_path = os.path.join(
 
-            print("filenames:", filenames)
-            task_id = save_task_to_database(date, time, filenames, db_extention)
-            filenames = []
+                os.path.abspath(os.path.dirname(__file__)),
+
+                app.config["UPLOAD_FOLDER_NORMAL"])
+            scheduled_time = request.form.get('time')
+            scheduled_tasks(folder_path, option, cor_data, scheduled_time)
             if already_posted_files == "yes":
                 return render_template("thanks.html", current_year=current_year)
 
+
         else:
+
             print("INSIDE NORMAL")
 
             app.config["Data"] = []
-            new_data = {}
-            count_img = 0
-            for file in files:
 
-                # old_filename, old_extension = file.filename.rsplit(".", 1)
-                # file.filename = str(random.randint(0,9999))+"."+old_extension
+            new_data = {}
+
+            count_img = 0
+
+            for file in files:
+                extention = os.path.splitext(file.filename)[1]
+
+                file.filename = str(uuid.uuid4()) + extention
 
                 folderpath = os.path.join(
+
                     os.path.abspath(os.path.dirname(__file__)),
+
                     app.config["UPLOAD_FOLDER_NORMAL"],
-                    secure_filename(file.filename),
+
+                    secure_filename(file.filename)
+
                 )
-                file.save(
-                    os.path.join(
-                        os.path.abspath(os.path.dirname(__file__)),
-                        app.config["UPLOAD_FOLDER_NORMAL"],
-                        secure_filename(file.filename),
-                    )
-                )  # Then save the file
-                extention = os.path.splitext(file.filename)[1]
-                # print(os.path.splitext(file.filename)[0],extention)
 
-                if extention in [".pdf", ".PDF"]:
+                file.save(folderpath)  # Then save the file
 
-                    app.config['is_PDF'] = True
-                    # ------new code start
-                    # pages=convert_from_path(folderpath,poppler_path=r"D:\flask\Assignment\assignment 1\drive-download-20230222T084703Z-001\poppler-0.67.0_x86\poppler-0.67.0\bin")
-                    pages = convert_from_path(
-                        folderpath, poppler_path=app.config['poppler_path'])
-                    path = os.path.join("./images_normal")
-                    # os.remove(f'./images/{file.filename}')
-                    count = 0
-                    for page in pages:
-                        count += 1
-                        jpg = path + "/" + str(count) + ".jpg"
-                        page.save(jpg, "JPEG")
-                        data = DataExtractNormal.Main(str(count) + ".jpg", file.filename, count, option)
-                        if len(data) == 0:
-                            data = ""
-                            continue
+            folder_path = os.path.join(
 
-                        # app.config["Data"].append(data)
+                os.path.abspath(os.path.dirname(__file__)),
 
-                        ###############################combined_data
-                        combined_data = {}
-                        id = str(count_img)
+                app.config["UPLOAD_FOLDER_NORMAL"])
 
-                        for record in data.values():
-                            # id = record['id']
-                            if id not in combined_data:
-                                combined_data[id] = {
-                                    'folder_name': record['folder_name'],
-                                    'filename': record['filename'],
-                                    'Page_n': record['Page_n'],
-                                    'id': id,
+            MainImg(folder_path, option, cor_data)
+            # Clean up the saved file
+            # List all files in the folder
+            file_list = os.listdir(folder_path)
 
-                                }
-                            field_name = record['field_name']
+            # Loop through the files and delete each one
+            for file_name in file_list:
+                file_path = os.path.join(folder_path, file_name)
+                if os.path.isfile(file_path):
+                    os.remove(file_path)
 
-                            # original code
-                            label_data = record['label_data'].strip()
-
-                            #########################################
-                            # temp code
-                            if record['Format'] == "Table":
-                                print("yes number.........")
-
-                                label_data = [
-                                    record['label_data'].strip().replace(",", "").replace("%", "").replace("\n",
-                                                                                                           ", ").replace(
-                                        "=", "")]
-                                # if label_data[0].split(',')
-                                contains_only_numbers = all(num.strip().isdigit() for num in label_data[0].split(','))
-
-                                if contains_only_numbers:
-                                    # Convert list of strings to list of integers
-                                    label_data = [int(num.strip()) for num in label_data[0].split(',')]
-                                    print('int_list')
-                                else:
-                                    label_data = [s.strip() for s in label_data[0].split(',') if s.strip()]
-
-                                    print("List contains non-numeric elements.")
-                            #########################################
-                            combined_data[id][field_name] = label_data
-
-                        app.config["Data"].append(combined_data[id])
-                        count_img += 1
-                        if page_limiter(count_img):
-                            break
-                    if page_limiter(count_img):
-                        break
-
-                    # -----new code end
-                elif extention in [".jpg", ".png", ".jpeg", ".tiff", ".tif"]:
-
-                    page_count = 1
-
-                    for f in os.listdir("./upload_normal"):
-
-                        data = DataExtractNormal.MainImg(
-                            os.path.join("./upload_normal", f), file.filename, page_count, option
-                        )
-
-                        os.remove(os.path.join("./upload_normal", f))
-
-                        ########################combined_data
-                        combined_data = {}
-                        id = str(count_img)
-
-                        for record in data.values():
-                            # id = record['id']
-                            if id not in combined_data:
-                                combined_data[id] = {
-                                    'folder_name': record['folder_name'],
-                                    'filename': record['filename'],
-                                    'Page_n': record['Page_n'],
-                                    'id': id
-                                }
-                            field_name = record['field_name']
-                            label_data = record['label_data'].strip() or "nil"
-                            combined_data[id][field_name] = label_data
-                        print("app.conig[data]", app.config["Data"])
-                        app.config["Data"].append(record)
-                        count_img += 1
-                    if page_limiter(count_img):
-                        break
-
-        return redirect(url_for("download", token=[token], current_year=current_year))
+        return redirect(url_for("download_list", token=[token], current_year=current_year))
 
     try:
-        shutil.rmtree("./jsonfile_normal")
-        shutil.rmtree("./images_normal")
+        shutil.rmtree("./static/jsonfile_normal")
+        shutil.rmtree("./static/static/images_normal")
         flash("Please wait for converting")
-        os.mkdir("./jsonfile_normal")
-        os.mkdir("./images_normal")
+        os.mkdir("./static/jsonfile_normal")
+        os.mkdir("./static/static/images_normal")
 
     except:
         pass
@@ -640,15 +835,16 @@ def Helpchange():
     # Get the 'token' and 'status' from the request arguments
     token = request.args.get("token")
     status = request.args.get("status")
-    
+
     # Update the status of the user in the database
     d = tbl_user.query.filter_by(id=current_user.id).first()
     d.status = status
     db.session.add(d)
     db.session.commit()
-    
+
     print("yes")
     return redirect(url_for("setting", token=[token]))
+
 
 # Route for changing the date format
 @app.route("/changedate", methods=["POST", "GET"])
@@ -657,15 +853,16 @@ def FormatChange():
     # Get the 'token' and 'dateformat' from the request arguments
     token = request.args.get("token")
     dateformat = request.args.get("dateformat")
-    
+
     # Update the date format of the user in the database
     d = tbl_user.query.filter_by(id=current_user.id).first()
     d.dateformat = str(dateformat)
     db.session.add(d)
     db.session.commit()
-    
+
     print("yes")
-    return redirect(url_for("setting", token=[token], current_year=datetime.now().year))
+    return redirect(url_for("setting", token=[token], current_year=datetime.datetime.now().year))
+
 
 # Route for deleting data
 @app.route("/delete/<int:id>")
@@ -674,29 +871,14 @@ def FormatChange():
 def delete(id):
     # Get the 'token' from the request arguments
     token = request.args.get("token")
-    
+
     # Delete data from the Cordinate_Data table for the specified user
     d = Cordinate_Data.query.filter_by(cord_id=id, user_id=current_user.id).first()
     db.session.delete(d)
     db.session.commit()
-    
-    return redirect(url_for("template", token=[token], current_year=datetime.now().year))
 
-# Route for removing a label
-@app.route("/remove/<id>")
-@token_required
-@login_required
-def remove(id):
-    # Get the 'token' from the request arguments
-    token = request.args.get("token")
-    
-    # Remove the label with the specified id from the app configuration
-    index = int(id) - 1
-    del app.config["LABELS"][index]
-    for label in app.config["LABELS"][index:]:
-        label["id"] = str(int(label["id"]) - 1)
-    
-    return redirect(url_for("tagger", token=[token], current_year=datetime.now().year))
+    return redirect(url_for("template", token=[token], current_year=datetime.datetime.now().year))
+
 
 # Route for updating label information
 @app.route("/label/<id>")
@@ -705,49 +887,66 @@ def label(id):
     token = request.args.get("token")
     name = request.args.get("name")
     dformat = request.args.get("dformat")
-    
+    print(id, name, dformat)
     # Update the label information in the app configuration
     app.config["LABELS"][int(id) - 1]["name"] = name
     app.config["LABELS"][int(id) - 1]["dformat"] = dformat
-    
-    return redirect(url_for("tagger", token=[token], current_year=datetime.now().year))
+
+    return redirect(url_for("tagger", token=[token], current_year=datetime.datetime.now().year))
+
 
 # Route for sending images
 @app.route("/image/<f>")
 def images(f):
     images = app.config["IMAGES"]
-    return send_file(images + rf"\{f}")
+    return send_file(images + f"/{f}")
 
-# Route for downloading data as JSON
-@app.route("/download", methods=["POST", "GET"])
+
+@app.route('/download_list', methods=["POST", "GET"])
 @token_required
 @login_required
-def download():
+def download_list():
+    Data = ExtractedFiles.query.filter_by(user_id=current_user.id).all()
+    return render_template("extracted_files.html", data=Data, current_year=datetime.datetime.now().year)
+
+
+# Route for downloading data as JSON
+@app.route("/download/<int:id>", methods=["POST", "GET"])
+@login_required
+def download(id):
     # Get the 'token' from the request arguments
-    token = request.args.get("token")
-    
-    # Fetch user data from the database
-    d = tbl_user.query.filter_by(id=current_user.id).first()
-    Data = []
+    token = current_user.token
 
-    ############################# added this
-    print("✅✅✅")
-    data = app.config["Data"]
+    try:
+        # Fetch user data from the database
+        d = ExtractedFiles.query.filter_by(id=id).first()
 
-    df = pd.DataFrame(data)
-    data_json = df.to_json(orient="columns")
+        # Decode the filename from bytes to strings
+        csv_filename = d.csvfilename.decode('utf-8')
 
-    print(df)
+        # Construct file path
+        csv_path = os.path.join("./static/csvfile", csv_filename)
 
-    return render_template(
-        "JsonData.html",
-        current_year=datetime.now().year,
-        tables=df.values.tolist(),
-        columns=df.columns,
-        data=data_json,
-        token=token,
-        status=int(d.status),
-    )
+        # Load CSV data using pandas
+        df = pd.read_csv(csv_path)
+
+        # Convert the DataFrame to JSON
+        json_data = df.to_json(orient='records', indent=4)
+
+        # Render the template with data
+        return render_template(
+            "JsonData.html",
+            current_year=datetime.datetime.now().year,
+            tables=df.to_dict("records"),  # Convert DataFrame to a list of dictionaries
+            columns=df.columns.tolist(),  # Convert DataFrame columns to a list
+            data_json=json_data,
+            token=token
+        )
+
+    except NoResultFound:
+        flash("No data found for the specified ID.")
+        return redirect(url_for("dashboard"))
+
 
 # Route for applying changes on a folder
 @app.route("/apply/<int:id>")
@@ -756,25 +955,24 @@ def download():
 def applyonfolder(id):
     # Get the 'token' from the request arguments
     token = request.args.get("token")
-    
+
     # Fetch Cordinate_Data for the specified id and user
     data = Cordinate_Data.query.filter_by(cord_id=id, user_id=current_user.id).first()
-    
+
     # Write the coordinates to a CSV file named "out.csv"
     with open("out.csv", "w") as f:
         f.write(data.cordinates)
-    
-    return redirect(url_for("upload", token=[token], current_year=datetime.now().year))
+
+    return redirect(url_for("upload", id=id, token=[token], current_year=datetime.datetime.now().year))
+
 
 if __name__ == "__main__":
     with app.app_context():
         db.create_all()
-
-    from schedule import run_scheduled_tasks
 
     scheduler = BackgroundScheduler(daemon=True)
 
     scheduler.add_job(run_scheduled_tasks, trigger='interval', seconds=60, args=(app,))
     scheduler.start()
 
-    app.run(debug=True, port=3000)
+    app.run(debug=True)

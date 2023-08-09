@@ -12,12 +12,11 @@ import os
 
 
 def run_scheduled_tasks(app):
-
     # from flask import current_app
     # app = current_app
 
     try:
-        
+
         # Connect to SQLite database
         conn = sqlite3.connect('tasks.db')
         cursor = conn.cursor()
@@ -31,8 +30,8 @@ def run_scheduled_tasks(app):
         tasks = cursor.fetchall()[:1]
 
         # Run tasks that are due
-        if len(tasks)>0:
-            for task_id, date,time,filenames,filetype in tasks:
+        if len(tasks) > 0:
+            for task_id, date, time, filenames, filetype in tasks:
 
                 # print(task_id,date,time,filenames,filetype)
                 # Convert the date and time from the form into a datetime object
@@ -40,16 +39,16 @@ def run_scheduled_tasks(app):
                 # Get the current date and time
                 current_datetime = datetime.now()
 
-                if current_datetime>=form_datetime:
-                    parse_and_extract(filetype,pickle.loads(filenames),app)
-                    result= "Check .csv files"
-                    data =app.config["Data"]
+                if current_datetime >= form_datetime:
+                    parse_and_extract(filetype, pickle.loads(filenames), app)
+                    result = "Check .csv files"
+                    data = app.config["Data"]
 
                     df = pd.DataFrame(data)
                     if not os.path.exists("OUTPUTS"):
                         os.makedirs("OUTPUTS")
-                    output_file = os.path.join("OUTPUTS",f'filename{random.randint(0,9999999)}.csv')
-                    df.to_csv(output_file, index = False, encoding='utf-8')
+                    output_file = os.path.join("OUTPUTS", f'filename{random.randint(0, 9999999)}.csv')
+                    df.to_csv(output_file, index=False, encoding='utf-8')
 
                     cursor.execute('''
                         UPDATE tasks
@@ -57,41 +56,40 @@ def run_scheduled_tasks(app):
                         WHERE task_id = ?
                     ''', (result, task_id))
             conn.commit()
-            app.config["Data"]=[]
+            app.config["Data"] = []
             # conn.close()
             cursor.close()
 
     except Exception as e:
-        print("🐛 in run_scheduled_tasks",e)
+        print("🐛 in run_scheduled_tasks".encode('utf-8'), e)
     return
 
 
-def parse_and_extract(extention,filenames,app):
+def parse_and_extract(extention, filenames, app):
     app.config["Data"] = []
-    new_data={}
+    new_data = {}
     count_img = 0
     for file in filenames:
 
         if extention in ["pdf", "PDF"]:
-            folderpath =  os.path.join(os.path.abspath(os.getcwd()),"upload",file)
+            folderpath = os.path.join(os.path.abspath(os.getcwd()), "upload", file)
 
             # ------new code start
             # pages=convert_from_path(folderpath,poppler_path=r"D:\flask\Assignment\assignment 1\drive-download-20230222T084703Z-001\poppler-0.67.0_x86\poppler-0.67.0\bin")
             pages = convert_from_path(
-                folderpath,poppler_path=app.config['poppler_path'])
-            path = os.path.join(os.path.abspath(os.getcwd()),"images")
+                folderpath, poppler_path=app.config['poppler_path'])
+            path = os.path.join(os.path.abspath(os.getcwd()), "static/images")
             # os.remove(f'./images/{file.filename}')
             count = 0
             for page in pages:
                 count += 1
                 jpg = path + "/" + str(count) + ".jpg"
                 page.save(jpg, "JPEG")
-                option="1"
+                option = "1"
                 data = Main(str(count) + ".jpg", file, count, option)
                 if len(data) == 0:
-                    data=""
+                    data = ""
                     continue
-
 
                 # app.config["Data"].append(data)
 
@@ -107,18 +105,20 @@ def parse_and_extract(extention,filenames,app):
                             'filename': record['filename'],
                             'Page_n': record['Page_n'],
                             'id': id,
-                            
+
                         }
                     field_name = record['field_name']
 
-                    #original code
+                    # original code
                     label_data = record['label_data'].strip()
 
                     #########################################
-                    #temp code
+                    # temp code
                     if record['Format'] == "Table":
 
-                        label_data = [record['label_data'].strip().replace(",","").replace("%","").replace("\n",", ").replace("=","")]
+                        label_data = [
+                            record['label_data'].strip().replace(",", "").replace("%", "").replace("\n", ", ").replace(
+                                "=", "")]
                         # if label_data[0].split(',')
                         contains_only_numbers = all(num.strip().isdigit() for num in label_data[0].split(','))
 
@@ -134,7 +134,7 @@ def parse_and_extract(extention,filenames,app):
                     combined_data[id][field_name] = label_data
 
                 app.config["Data"].append(combined_data[id])
-                count_img+=1
+                count_img += 1
                 if page_limiter(count_img):
                     break
             if page_limiter(count_img):
@@ -147,27 +147,23 @@ def parse_and_extract(extention,filenames,app):
 
             page_count = 1
 
-
             # directory = os.path.join(os.path.abspath(os.getcwd()),"upload")
             # img_list = []
 
-
             for f in filenames:
-                f= f.replace("/","_")
-                option="1"
+                f = f.replace("/", "_")
+                option = "1"
                 # file = open(os.path.join(os.path.abspath(os.getcwd()),"upload", f))
 
                 data = MainImg(
-                    os.path.join(os.path.abspath(os.getcwd()),"upload", f), f, page_count, option
+                    os.path.join(os.path.abspath(os.getcwd()), "upload", f), f, page_count, option
                 )
-
 
                 # os.remove(os.path.join(os.path.abspath(os.getcwd()),"upload", f))
 
                 ########################combined_data
                 combined_data = {}
                 id = str(count_img)
-
 
                 for record in data.values():
                     # id = record['id']
@@ -183,16 +179,13 @@ def parse_and_extract(extention,filenames,app):
                     combined_data[id][field_name] = label_data
 
                 app.config["Data"].append(combined_data[id])
-                count_img+=1
+                count_img += 1
 
                 if page_limiter(count_img):
                     break
 
-
             if page_limiter(count_img):
                 break
-                   
-            
 
 # return redirect(url_for("download", token=[token]))
 # try:
