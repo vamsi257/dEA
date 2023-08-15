@@ -13,7 +13,6 @@ from pytz import timezone
 from flask_bcrypt import Bcrypt
 import socket
 from functools import wraps
-import pymysql
 import base64
 import datetime
 import shutil
