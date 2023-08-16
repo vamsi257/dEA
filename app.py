@@ -1,4 +1,3 @@
-import cv2
 import jwt
 from flask import Flask, render_template, request, redirect, url_for, abort, flash, send_file, jsonify, \
     send_from_directory, current_app
