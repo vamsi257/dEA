@@ -93,23 +93,10 @@
 
                   </div>
 
-                  <div style="display: flex;">
-                  <label htmlFor="date-input">Date: &nbsp</label>
-                  <input
-                  type="date"
-                  id="date-input"
-                  name="date"
-                  placeholder="yyyy-mm-dd"
-                  value="2023-03-09"
-                  />
 
-                  <input
-                  type="time"
-                  id="time-input"
-                  name="time"  
-                  value="00:00"                  
-                  />
-                  </div>
+                  <label>Extraction Time</label><br>
+                      <input type="datetime-local" id="scheduled_time" name="scheduled_time">
+<br>
 
                     
                     <!--<input type="file" class="form-control" placeholder="put jsonfile" id="jsonfile" name="jsonfile">-->
@@ -142,17 +129,6 @@
         If you select With Cloud vision so you can extract handwritten data and normal data from the pdfs/images but you need to upload json file of cloud vision.</li>
       </div>
     </div>
-    <script>
-       var now = new Date();
-
-  // Set the value of the date input to today's date in yyyy-mm-dd format
-  var dateInput = document.getElementById('date-input');
-  dateInput.value = now.getFullYear() + '-' + (now.getMonth() + 1).toString().padStart(2, '0') + '-' + now.getDate().toString().padStart(2, '0');
-
-  // Set the value of the time input to the current time in 24-hour format
-  var timeInput = document.getElementById('time-input');
-  timeInput.value = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
-    </script>
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
     <script src="{{ url_for('static', filename='js/upload.js') }}"></script>
    
