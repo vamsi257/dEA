@@ -1,7 +1,7 @@
 import cv2
 import jwt
 from flask import Flask, render_template, request, redirect, url_for, abort, flash, send_file, jsonify, \
-    send_from_directory
+    send_from_directory, current_app
 from flask_login import UserMixin, logout_user, current_user, login_user, LoginManager, login_required
 from wtforms import StringField, PasswordField, SubmitField, MultipleFileField, FileField
 from wtforms.validators import InputRequired, Length
@@ -21,9 +21,7 @@ import uuid
 from werkzeug.utils import secure_filename
 import pandas as pd
 from pdf2image import convert_from_path
-from apscheduler.schedulers.background import BackgroundScheduler
 from page_limiter import page_limiter
-from schedule import run_scheduled_tasks
 import pickle
 import csv
 import uuid
@@ -86,94 +84,100 @@ def detectText(content):
     texts = response.text_annotations
     data = ""
     for text in texts:
-        # data+=text.description
         data += text.description
-
         break
     return data
 
 
-def MainImg(image_folder, option, data):
-    pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
-    csv_filename = f'{uuid.uuid1()}extracted_data.csv'
-    coordinates_data = []
-    input_string = data.cordinates
-    lines = input_string.splitlines()
-    for line in lines:
-        split_values = line.split(',')
-        coordinates_data.append(split_values)
-    # Process each image in the folder
-    for image_filename in os.listdir(image_folder):
-        if image_filename.endswith(('.jpg', '.png', '.jpeg', '.tif', '.tiff')):
-            print(f"Processing image: {image_filename}")
+def MainImg(user_id, image_folder, option, data):
+    with app.app_context():
+        pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+        csv_filename = f'{uuid.uuid1()}extracted_data.csv'
+        coordinates_data = []
+        input_string = data.cordinates
+        lines = input_string.splitlines()
+        for line in lines:
+            split_values = line.split(',')
+            coordinates_data.append(split_values)
 
-            # Define a data structure to store extracted data
-            extracted_data = {}
-            # Process each set of coordinates
-            for coord in coordinates_data:
-                _, column_title, x_min, x_max, y_min, y_max, data_type = coord
+        # Define a data structure to store extracted data for all images
+        all_extracted_data = []
+
+        # Process each image in the folder
+        for image_filename in os.listdir(image_folder):
+            if image_filename.endswith(('.jpg', '.png', '.jpeg', '.tif', '.tiff')):
+                print(f"Processing image: {image_filename}")
+
+                # Define a data structure to store extracted data for this image
+                extracted_data = {}
 
                 # Load the image using OpenCV
                 image = cv2.imread(os.path.join(image_folder, image_filename))
 
-                # Print image dimensions and coordinates for debugging
-                print(f"Image dimensions: {image.shape}")
-                print(f"Coordinates: x_min={x_min}, x_max={x_max}, y_min={y_min}, y_max={y_max}")
+                # Process each set of coordinates
+                for coord in coordinates_data:
+                    _, column_title, x_min, x_max, y_min, y_max, data_type = coord
 
-                x_min = int(x_min)
-                x_max = int(x_max)
-                y_min = int(y_min)
-                y_max = int(y_max)
+                    # Print image dimensions and coordinates for debugging
+                    print(f"Image dimensions: {image.shape}")
+                    print(f"Coordinates: x_min={x_min}, x_max={x_max}, y_min={y_min}, y_max={y_max}")
 
-                # Check if coordinates are within image boundaries
-                if x_min < 0 or x_max > image.shape[1] or y_min < 0 or y_max > image.shape[0]:
-                    print("Error: Coordinates are outside image boundaries")
-                    continue  # Skip this iteration
+                    x_min = int(x_min)
+                    x_max = int(x_max)
+                    y_min = int(y_min)
+                    y_max = int(y_max)
 
-                # Extract the region of interest (ROI) using coordinates
-                roi = image[y_min:y_max, x_min:x_max]
-                if option == "1":
-                    # Perform OCR on the ROI
-                    extracted_text = pytesseract.image_to_string(roi, lang='eng', config='--psm 6')
+                    # Check if coordinates are within image boundaries
+                    if x_min < 0 or x_max > image.shape[1] or y_min < 0 or y_max > image.shape[0]:
+                        print("Error: Coordinates are outside image boundaries")
+                        continue  # Skip this iteration
 
-                    # Add extracted data to the data structure
-                    extracted_data[column_title] = extracted_text.strip()
-                elif option == "2":
-                    # cloud vision
-                    success, image = cv2.imencode('.png', roi)
-                    content = image.tobytes()
-                    extracted_data[column_title] = detectText(content)  # Add extracted data
+                    # Extract the region of interest (ROI) using coordinates
+                    roi = image[y_min:y_max, x_min:x_max]
+                    if option == "1":
+                        # Perform OCR on the ROI
+                        extracted_text = pytesseract.image_to_string(roi, lang='eng', config='--psm 6')
+                        extracted_data[column_title] = extracted_text.strip()
+                    elif option == "2":
+                        # Google Cloud Vision
+                        success, roi_encoded = cv2.imencode('.png', roi)
+                        roi_content = roi_encoded.tobytes()
+                        extracted_text = detectText(roi_content)
+                        extracted_data[column_title] = extracted_text.strip()
 
-            # Save extracted data as CSV
-            csv_file = os.path.join("./static/csvfile", csv_filename)
-            with open(csv_file, 'w', newline='') as csv_file:
-                csv_writer = csv.writer(csv_file)
+                # Append extracted data for this image to the list of all_extracted_data
+                all_extracted_data.append(extracted_data)
+
+        # Save all extracted data as CSV
+        csv_file_path = os.path.join("./static/csvfile", csv_filename)
+        with open(csv_file_path, 'w', newline='') as csv_file:
+            if all_extracted_data:
+                csv_writer = csv.DictWriter(csv_file, fieldnames=all_extracted_data[0].keys())
 
                 # Write the CSV header
-                csv_writer.writerow(extracted_data.keys())
+                csv_writer.writeheader()
 
-                # Write the extracted data row
-                csv_writer.writerow(extracted_data.values())
+                # Write the extracted data rows
+                csv_writer.writerows(all_extracted_data)
+                print(all_extracted_data)
 
-    encoded_csv_filename = csv_file.encode('utf-8')
-
-    extract = ExtractedFiles(user_id=current_user.id,
-                             csvfilename=encoded_csv_filename)
-    db.session.add(extract)
-    db.session.commit()
-
-    return csv_filename
+        encoded_csv_filename = os.path.basename(csv_file_path).encode('utf-8')
+        extract = ExtractedFiles(user_id=user_id, csvfilename=encoded_csv_filename)
+        db.session.add(extract)
+        db.session.commit()
+        print(f"Extracted data Successfully!!")
 
 
-def schedule_extraction(image_folder, option, data, scheduled_time):
-    current_time = datetime.now()
-    extraction_time = datetime.strptime(scheduled_time, "%Y-%m-%dT%H:%M")
+def schedule_extraction(user_id, image_folder, option, data, scheduled_time):
+    current_time = datetime.datetime.now()
+    extraction_time = datetime.datetime.strptime(scheduled_time, "%Y-%m-%dT%H:%M")
 
     if extraction_time < current_time:
         flash("Scheduled time should be in the future.")
+        return redirect(url_for(template))
 
     time_difference = (extraction_time - current_time).total_seconds()
-    timer = threading.Timer(time_difference, MainImg, args=(image_folder, option, data,))
+    timer = threading.Timer(time_difference, MainImg, args=(user_id, image_folder, option, data,))
     timer.start()
     print(f'Scheduled{timer}')
     scheduled_tasks[image_folder] = timer
@@ -760,8 +764,8 @@ def upload(id):
                 os.path.abspath(os.path.dirname(__file__)),
 
                 app.config["UPLOAD_FOLDER_NORMAL"])
-            scheduled_time = request.form.get('time')
-            scheduled_tasks(folder_path, option, cor_data, scheduled_time)
+            scheduled_time = request.form.get('scheduled_time')  # Get the scheduled extraction time from the form
+            schedule_extraction(current_user.id, folder_path, option, cor_data, scheduled_time)
             if already_posted_files == "yes":
                 return render_template("thanks.html", current_year=current_year)
 
@@ -799,7 +803,7 @@ def upload(id):
 
                 app.config["UPLOAD_FOLDER_NORMAL"])
 
-            MainImg(folder_path, option, cor_data)
+            MainImg(current_user.id, folder_path, option, cor_data)
             # Clean up the saved file
             # List all files in the folder
             file_list = os.listdir(folder_path)
@@ -968,10 +972,8 @@ def applyonfolder(id):
 if __name__ == "__main__":
     with app.app_context():
         db.create_all()
-
-    scheduler = BackgroundScheduler(daemon=True)
-
-    scheduler.add_job(run_scheduled_tasks, trigger='interval', seconds=60, args=(app,))
-    scheduler.start()
-
+    # Your Flask app run code
     app.run(debug=True)
+    # Create and start the image processing thread
+    thread = threading.Thread(target=MainImg, args=(user_id, image_folder, option, data))
+    thread.start()
