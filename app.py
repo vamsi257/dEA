@@ -55,7 +55,7 @@ app.config["UPLOAD_FOLDER_NORMAL"] = "upload_normal"
 app.config["OUT"] = "out.csv"
 app.config['poppler_path'] = r"D:\work1\poppler-0.67.0_x86\poppler-0.67.0\bin"
 # Configure the allowed file extensions for upload
-app.config["ALLOWED_EXTENSIONS"] = {"png", "jpg", "jpeg", "gif", "pdf"}
+app.config["ALLOWED_EXTENSIONS"] = {"png", "jpg", "jpeg", "gif", "pdf", 'tif', 'tiff'}
 
 # Initialize the database using SQLAlchemy.
 db = SQLAlchemy(app)
