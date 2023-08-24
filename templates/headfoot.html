@@ -1,120 +1,115 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
+
 <head>
-<meta charset="UTF-8">
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="X-UA-Compatible" content="ie=edge">
   <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='icon/icon.jpg') }}">
-
-<!-- Font Awesome -->
-<link
-  href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
-  rel="stylesheet"
-/>
-<!-- Google Fonts -->
-<link
-  href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap"
-  rel="stylesheet"
-/>
-<!-- MDB -->
-<link
-  href="https://cdnjs.cloudflare.com/ajax/libs/mdb-ui-kit/6.2.0/mdb.min.css"
-  rel="stylesheet"
-/>
-
-
-<!-- MDB -->
-<script
-  type="text/javascript"
-  src="https://cdnjs.cloudflare.com/ajax/libs/mdb-ui-kit/6.2.0/mdb.min.js"
-></script>
-    {% block title %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/loading.css') }}">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0/dist/css/bootstrap.min.css" rel="stylesheet"
+    integrity="sha384-gH2yIJqKdNHPEq0n4Mqa/HGKIhSkIHeL5AyhkYV8i59U5AR6csBvApHHNl/vI1Bx" crossorigin="anonymous">
+</head>
+{% block title %}
 
 {% endblock title %}
 
+
 </head>
-<body>
-  <nav class="navbar navbar-expand-lg navbar-light bg-white fixed-top">
-  <div class="container-fluid">
-    <a class="navbar-brand" href="{{  url_for('home') }}">
-      <strong>Extractor</strong>
-    </a>
-    <button class="navbar-toggler" type="button" data-mdb-toggle="collapse" data-mdb-target="#navbarExample01"
-            aria-controls="navbarExample01" aria-expanded="false" aria-label="Toggle navigation">
-      <i class="fas fa-bars"></i>
-    </button>
-    <div class="collapse navbar-collapse" id="navbarExample01">
-      <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
-        <li class="nav-item">
-          <a class="nav-link" aria-current="page" href="{{  url_for('home') }}">
-            <strong style="color: black">HOME</strong>
-          </a>
-        </li>
-        {% if show_log %}
-          {% if current_user.is_authenticated %}
-        <li class="nav-item">
-          <a class="nav-link" href="{{ url_for('dashboard')}}">
-            <strong style="color:black">Dashboard</strong>
-          </a>
-        </li>
-          {% else %}
-        <li class="nav-item">
-          <a class="nav-link" href="{{ url_for('login') }}">
-            <strong style="color:black">LOGIN</strong>
-          </a>
-        </li>
-        {% endif %}
-        {% endif %}
-      </ul>
-    </div>
-  </div>
-  </nav>
-{% block body %}
+{% if current_user.is_authenticated %}
+<body onload="move('helpbutton')">
+    <nav class="navbar navbar-expand-lg sticky-top bg-dark navbar-dark">
+        <div class="container-fluid">
+          <a class="navbar-brand" href="/">Data Extractor</a>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+          </button>
+          <div class="collapse navbar-collapse" id="navbarSupportedContent">
 
-{% endblock body%}
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"
-            integrity="sha384-ka7Sk0Gln4gmtz2MlQnikT1wXgYsOg+OMhuP+IlRH9sENBO0LRn5q+8nbTov4+1p"
-            crossorigin="anonymous"></script>
-{% if sticky %}
-  <footer class="bg-dark text-center text-white">
-    <div class="container p-4 pb-0">
-      <section class="mb-4">
-        <a class="btn btn-outline-light btn-floating m-1" href=""
-           role="button" target="_blank"><i class="fab fa-facebook-f"></i></a>
-        <a class="btn btn-outline-light btn-floating m-1" href="" role="button"
-          target="_blank"><i class="fab fa-twitter"></i></a>
-        <a class="btn btn-outline-light btn-floating m-1" href=""
-           role="button" target="_blank"><i class="fab fa-instagram"></i></a>
-        <a class="btn btn-outline-light btn-floating m-1"
-           href="" role="button" target="_blank">
-          <i class="fab fa-linkedin-in"></i></a>
+            <ul class="navbar-nav me-auto mb-2 mb-lg-0">
 
-      </section>
-    </div>
-    <div class="text-center p-3" style="background-color: rgba(0, 0, 0, 0.2);">
-      © {{ current_year }} Copyright Extractor
-    </div>
-  </footer>
-{% else %}
-<footer class="bg-dark text-center text-white fixed-bottom">
-    <div class="container p-4 pb-0">
-      <section class="mb-4">
-        <a class="btn btn-outline-light btn-floating m-1" href=""
-           role="button" target="_blank"><i class="fab fa-facebook-f"></i></a>
-        <a class="btn btn-outline-light btn-floating m-1" href="" role="button"
-          target="_blank"><i class="fab fa-twitter"></i></a>
-        <a class="btn btn-outline-light btn-floating m-1" href=""
-           role="button" target="_blank"><i class="fab fa-instagram"></i></a>
-        <a class="btn btn-outline-light btn-floating m-1"
-           href="" role="button" target="_blank">
-          <i class="fab fa-linkedin-in"></i></a>
+              <li class="nav-item">
+                <a class="nav-link active" aria-current="page" href="/">Home</a>
+              </li>
+              <li class="nav-item">
+                <a onclick="history.back()" class="nav-link active" aria-current="page"  href="#">Back</a>
+              </li>
 
-      </section>
-    </div>
-    <div class="text-center p-3" style="background-color: rgba(0, 0, 0, 0.2);">
-      © {{current_year}} Copyright Druidot
-    </div>
-  </footer>
-{% endif %}
+            </ul>
+            <form class="d-flex">
+
+
+              <li class="me-5">
+                <b class="btn btn-dark">
+
+                  <div class="dropdown">
+                    <button class="btn btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown"
+                      aria-expanded="false">
+                      {{current_user.Name}}
+                    </button>
+                    <ul class="dropdown-menu">
+                      <li><a class="dropdown-item" href="/dashboard">Dashboard</a></li>
+                      <li><a class="dropdown-item" href="/setting?token={{token}}">Setting</a></li>
+                      <b class="btn btn-danger mx-2"><a href="/logout?token={{token}}" class="nav-link">Logout</a></b>
+                    </ul>
+                  </div>
+                </b>
+
+
+
+              </li>
+            </form>
+          </div>
+        </div>
+      </nav>
+ <div class="loading" id="js-loader">
+        <div class="loader"></div>
+      </div>
+    {% endif %}
+      {% block body %}
+
+
+      {% endblock body %}
+      {%if status%}
+      <div class="fixed-bottom my-5 mx-3" id="helpbutton">
+        <div class="">
+          <button class="btn btn-primary" type="button" data-bs-toggle="offcanvas" data-bs-target="#offcanvasRight"
+            aria-controls="offcanvasLeft">Help<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"
+              fill="currentColor" class="bi bi-info-square mx-1" viewBox="0 0 16 16">
+              <path
+                d="M14 1a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h12zM2 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H2z" />
+              <path
+                d="m8.93 6.588-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.738 3.468c-.194.897.105 1.319.808 1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.176-.492.246-.686.246-.275 0-.375-.193-.304-.533L8.93 6.588zM9 4.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0z" />
+            </svg></button>
+        </div><br>
+      </div>
+      {%endif%}
+      <script src="{{ url_for('static', filename='js/helpbutton.js') }}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0/dist/js/bootstrap.bundle.min.js"
+    integrity="sha384-A3rJD856KowSb7dwlZdYEkO39Gagi7vIsF0jrRAoQmDKKtQBHUuLZ9AsSv4jD4Xa"
+    crossorigin="anonymous"></script>
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
+   <script>
+window.addEventListener("load", myFunction);
+
+    function myFunction(){
+
+      let loaderAnim = document.getElementById('js-loader');
+
+
+      setInterval(loaderAnim.remove(), 3000);
+    }
+    window.addEventListener( "pageshow", function ( event ) {
+      var historyTraversal = event.persisted ||
+                             ( typeof window.performance != "undefined" &&
+                                  window.performance.navigation.type === 2 );
+      if ( historyTraversal ) {
+        // Handle page restore.
+        window.location.reload();
+      }
+    });
+   </script>
 </body>
+
 </html>

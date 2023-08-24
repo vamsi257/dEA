@@ -1,57 +1,32 @@
 {% extends 'headfoot.html' %}
 {% block title %}
 <title>Login</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/loginform.css') }}">
+<link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='icon/icon.jpg') }}">
 {% endblock title %}
+
 {% block body %}
-<br><br><br>
-     {% for message in get_flashed_messages() %}
-    <div class="alert alert-warning alert-dismissible fade show" role="alert" onclick="closeAlert(this)">
-        {{ message }}
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
-{% endfor %}
 
-<script>
-    function closeAlert(alertElement) {
-        alertElement.classList.remove("show");
-        setTimeout(function() {
-            alertElement.style.display = "none";
-        }, 500);
-    }
-</script>
 
-<section class="mb-5" id="a">
-        <h4 class="mb-5 text-center"><strong>LOGIN</strong></h4><br><br>
-
-        <div class="row d-flex justify-content-center">
-          <div class="col-md-6">
-            <form method="post">
-
-              <div class="form-outline col-auto">
+    <div class="content">
+      <div class="text">Login Form</div>
+      <form method="post">
+        <div class="field">
+          <span class="fas fa-user"></span>
           {{ form.hidden_tag() }}
-          {{ form.username(class="form-control") }}
-                <label class="form-label" for="form3Example3">Username</label>
-              </div><br>
-              <br>
-              <div class="form-outline col-auto">
-                {{ form.password(class="form-control") }}
-                <label class="form-label" for="form3Example4">Password</label>
-              </div><br>
+          {{ form.username }}
 
-              <!-- Submit button -->
-              <button type="submit" class="btn btn-primary btn-block mb-4">
-                Login
-              </button>
-              <br>
-              <br>
-              <div style="text-align: center;">
-                <label class="form-label" for="form3Example3">If You're not having account?
-                  <a href="{{  url_for('signup') }}">Register</a></label><br>
+        </div>
+        <div class="field">
+          <span class="fas fa-lock"></span>
+          {{ form.password }}
 
-
-</form>
-</div>
-</div>
-</section>
+        </div>
+        <br>
+        <button>Sign in</button>
+        <div class="signup">Not a member?
+          <a href="/register">signup now</a>
+        </div>
+      </form>
   </div>
   {% endblock body %}
