@@ -1,6 +1,7 @@
 import jwt
+from PIL import Image
 from flask import Flask, render_template, request, redirect, url_for, abort, flash, send_file, jsonify, \
-    send_from_directory, current_app
+    send_from_directory
 from flask_login import UserMixin, logout_user, current_user, login_user, LoginManager, login_required
 from wtforms import StringField, PasswordField, SubmitField, MultipleFileField, FileField
 from wtforms.validators import InputRequired, Length
@@ -16,11 +17,9 @@ import base64
 import datetime
 import shutil
 import json
-import uuid
 from werkzeug.utils import secure_filename
 import pandas as pd
 from pdf2image import convert_from_path
-from page_limiter import page_limiter
 import pickle
 import csv
 import uuid
@@ -49,11 +48,10 @@ app.config['STATIC_FOLDER'] = './static'  # Folder to serve static files
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///extract.db'  # Database connection
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
-app.config["SECRET_KEY"] = "supersecretkeybkiran"
+app.config["SECRET_KEY"] = "90a685b9e1477480d8c1cce1f545e0504c84d7f2041dc733ceabe26597a6b5f6"
 app.config["UPLOAD_FOLDER"] = "./static/upload"
 app.config["UPLOAD_FOLDER_NORMAL"] = "upload_normal"
 app.config["OUT"] = "out.csv"
-app.config['poppler_path'] = r"D:\work1\poppler-0.67.0_x86\poppler-0.67.0\bin"
 # Configure the allowed file extensions for upload
 app.config["ALLOWED_EXTENSIONS"] = {"png", "jpg", "jpeg", "gif", "pdf", 'tif', 'tiff'}
 
@@ -289,12 +287,6 @@ class UploadFileForm(FlaskForm):
     Temp_name = StringField(validators=[InputRequired(), Length(min=4, max=20)])
 
 
-# Home page
-@app.route('/')
-def home():
-    return render_template('index.html', current_year=datetime.datetime.now().year)
-
-
 # Dashboard route accessible after login, showing user information.
 @app.route('/dashboard')
 @login_required
@@ -304,7 +296,7 @@ def dashboard():
     username = current_user.username
     date = current_user.Date_time
     row = [name, current_user.id, username, date]
-    return render_template('dashboard.html', data=row, current_year=current_year)
+    return render_template('dashboard.html', data=row)
 
 
 # registration
@@ -319,7 +311,7 @@ def signup():
         if user:
             # If user already exists, show a flash message.
             flash("You already having the account on this email!")
-            return render_template("login.html", current_year=current_year)
+            return render_template("login.html")
         else:
             # Hash the password and create a new user in the database.
             hashed_password = bcrypt.generate_password_hash(form.password.data)
@@ -334,8 +326,8 @@ def signup():
             )
             db.session.add(new_user)
             db.session.commit()
-            return redirect(url_for("login", current_year=current_year))
-    return render_template("register.html", form=form, current_year=current_year)
+            return redirect(url_for("login"))
+    return render_template("register.html", form=form)
 
 
 # login
@@ -354,7 +346,7 @@ def login():
                 user.ip = str(IPadd)
                 db.session.add(user)
                 db.session.commit()
-                return redirect(url_for('login', current_year=current_year))
+                return redirect(url_for('login'))
             elif user.ip != IPadd:
                 # If user's IP address does not match, show an error message.
                 abort(400, "You cannot access this application, contact to owner")
@@ -371,10 +363,10 @@ def login():
                 user.token = token
                 db.session.add(user)
                 db.session.commit()
-                return redirect(url_for("home", current_year=current_year))
+                return redirect(url_for("template"))
         else:
             flash("please enter correct details")
-    return render_template("Login.html", form=form, current_year=current_year)
+    return render_template("Login.html", form=form)
 
 
 # Route to save data received via AJAX to JSON and CSV files.
@@ -405,13 +397,13 @@ def save_as_csv(data):
 def token_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        token = request.args.get("token")
+        token = current_user.token
         if not token:
-            return render_template("alert.html", message="Token is missing", current_year=datetime.datetime.now().year)
+            return render_template("alert.html", message="Token is missing")
         try:
             data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
         except:
-            return render_template("alert.html", message="Token is invalid", current_year=datetime.datetime.now().year)
+            return render_template("alert.html", message="Token is invalid")
         return f(*args, **kwargs)
 
     return decorated
@@ -424,7 +416,7 @@ def logout():
     logout_user()
     current_year = datetime.datetime.now().year
     flash("You Have Been Logged Out!")
-    return redirect(url_for('login', current_year=current_year))
+    return redirect(url_for('login'))
 
 
 # Function to check if the file extension is allowed
@@ -437,11 +429,11 @@ def allowed_file(filename):
 def temp_success():
     current_year = datetime.datetime.now().year
     flash("Template uploaded successfully!")
-    return render_template("temp.html", current_year=current_year)
+    return render_template("temp.html")
 
 
 # Route for managing uploads of templates and image/PDF files.
-@app.route("/template", methods=["GET", "POST"])
+@app.route("/", methods=["GET", "POST"])
 @login_required
 def template():
     current_year = datetime.datetime.now().year
@@ -473,7 +465,7 @@ def template():
         files = form.file.data
         if len(files) == 0:
             flash('No files selected')
-            return redirect(url_for('template', token=token, current_year=current_year))
+            return redirect(url_for('template', token=token))
         else:
             # Create directories if they don't exist
             os.makedirs(os.path.join(app.config["UPLOAD_FOLDER"], "images"), exist_ok=True)
@@ -580,7 +572,7 @@ def tagger():
         db.session.commit()
         with open(app.config["OUT"], "r+") as f:
             f.truncate(0)
-        return redirect(url_for("temp_success", current_year=current_year))
+        return redirect(url_for("temp_success"))
     # image = app.config["FILES"][app.config["HEAD"]]
     # image=str(app.config["HEAD"])+".jpg"
     if type(app.config["uploaded_files"][app.config["HEAD"]]) == str:
@@ -698,7 +690,7 @@ def remove(id):
     del app.config["LABELS"][index]
     for label in app.config["LABELS"][index:]:
         label["id"] = str(int(label["id"]) - 1)
-    return redirect(url_for("tagger", token=[token], current_year=datetime.datetime.now().year))
+    return redirect(url_for("tagger", token=[token]))
 
 
 # Route for managing uploads of templates and image/PDF files.
@@ -706,7 +698,6 @@ def remove(id):
 @token_required
 @login_required
 def upload(id):
-    current_year = datetime.datetime.now().year
     files = None
     already_posted_files = "no"
     token = request.args.get("token")
@@ -734,6 +725,14 @@ def upload(id):
         new_data = {}
         count_img = 0
         filenames = []
+        folder_path = os.path.join(
+
+            os.path.abspath(os.path.dirname(__file__)),
+
+            app.config["UPLOAD_FOLDER_NORMAL"],
+
+            str(uuid.uuid4()))
+        os.mkdir(folder_path)
         if choose_scheduler:
             # If the scheduler is chosen, save the task to the database and redirect to the thank you page.
             print("INSIDE CHOOSE")
@@ -742,31 +741,38 @@ def upload(id):
             count_img = 0
 
             for file in files:
-                extention = os.path.splitext(file.filename)[1]
+                extention = os.path.splitext(file.filename)[1].lower()
 
-                file.filename = str(uuid.uuid4()) + extention
+                # Generate a unique filename for the PNG conversion
+                png_filename = str(uuid.uuid4()) + ".png"
 
-                folderpath = os.path.join(
+                if extention in ['.jpg', '.jpeg', '.gif', '.png', '.tif', '.tiff']:
+                    # Convert image files to PNG using PIL
+                    with Image.open(file) as img:
+                        # Convert the image to RGB mode if it's not already
+                        if img.mode != "RGB":
+                            img = img.convert("RGB")
 
-                    os.path.abspath(os.path.dirname(__file__)),
+                        # Convert and save the image to PNG format
+                        png_path = os.path.join(folder_path, secure_filename(png_filename))
+                        img.save(png_path, format="PNG")
+                elif extention == ".pdf":
+                    # Convert PDF files to PNG using pdf2image
+                    pdf_path = os.path.join(folder_path, secure_filename(file.filename))
+                    file.save(pdf_path)
 
-                    app.config["UPLOAD_FOLDER_NORMAL"],
+                    # Convert each PDF page to a PNG image
+                    pdf_images = convert_from_path(pdf_path, dpi=300)
+                    for page_num, pdf_image in enumerate(pdf_images):
+                        if page_num >= 100:
+                            break  # Limit to 100 pages
+                        png_path = os.path.join(folder_path, f"page_{page_num + 1}.png")
+                        pdf_image.save(png_path, format="PNG")  # Then save the file
 
-                    secure_filename(file.filename)
-
-                )
-
-                file.save(folderpath)  # Then save the file
-
-            folder_path = os.path.join(
-
-                os.path.abspath(os.path.dirname(__file__)),
-
-                app.config["UPLOAD_FOLDER_NORMAL"])
             scheduled_time = request.form.get('scheduled_time')  # Get the scheduled extraction time from the form
             schedule_extraction(current_user.id, folder_path, option, cor_data, scheduled_time)
             if already_posted_files == "yes":
-                return render_template("thanks.html", current_year=current_year)
+                return render_template("thanks.html")
 
 
         else:
@@ -780,27 +786,33 @@ def upload(id):
             count_img = 0
 
             for file in files:
-                extention = os.path.splitext(file.filename)[1]
+                extention = os.path.splitext(file.filename)[1].lower()
 
-                file.filename = str(uuid.uuid4()) + extention
+                # Generate a unique filename for the PNG conversion
+                png_filename = str(uuid.uuid4()) + ".png"
 
-                folderpath = os.path.join(
+                if extention in ['.jpg', '.jpeg', '.gif', '.png', '.tif', '.tiff']:
+                    # Convert image files to PNG using PIL
+                    with Image.open(file) as img:
+                        # Convert the image to RGB mode if it's not already
+                        if img.mode != "RGB":
+                            img = img.convert("RGB")
 
-                    os.path.abspath(os.path.dirname(__file__)),
+                        # Convert and save the image to PNG format
+                        png_path = os.path.join(folder_path, secure_filename(png_filename))
+                        img.save(png_path, format="PNG")
+                elif extention == ".pdf":
+                    # Convert PDF files to PNG using pdf2image
+                    pdf_path = os.path.join(folder_path, secure_filename(file.filename))
+                    file.save(pdf_path)
 
-                    app.config["UPLOAD_FOLDER_NORMAL"],
-
-                    secure_filename(file.filename)
-
-                )
-
-                file.save(folderpath)  # Then save the file
-
-            folder_path = os.path.join(
-
-                os.path.abspath(os.path.dirname(__file__)),
-
-                app.config["UPLOAD_FOLDER_NORMAL"])
+                    # Convert each PDF page to a PNG image
+                    pdf_images = convert_from_path(pdf_path, dpi=300)
+                    for page_num, pdf_image in enumerate(pdf_images):
+                        if page_num >= 100:
+                            break  # Limit to 100 pages
+                        png_path = os.path.join(folder_path, f"page_{page_num + 1}.png")
+                        pdf_image.save(png_path, format="PNG")  # Then save the file
 
             MainImg(current_user.id, folder_path, option, cor_data)
             # Clean up the saved file
@@ -813,7 +825,7 @@ def upload(id):
                 if os.path.isfile(file_path):
                     os.remove(file_path)
 
-        return redirect(url_for("download_list", token=[token], current_year=current_year))
+        return redirect(url_for("download_list", token=[token]))
 
     try:
         shutil.rmtree("./static/jsonfile_normal")
@@ -826,7 +838,7 @@ def upload(id):
         pass
 
     d = tbl_user.query.filter_by(id=current_user.id).first()
-    return render_template("upload.html", form=form, token=token, status=int(d.status), current_year=current_year)
+    return render_template("upload.html", form=form, token=token, status=int(d.status))
 
 
 # Route for changing user status
@@ -863,7 +875,7 @@ def FormatChange():
     db.session.commit()
 
     print("yes")
-    return redirect(url_for("setting", token=[token], current_year=datetime.datetime.now().year))
+    return redirect(url_for("setting", token=[token]))
 
 
 # Route for deleting data
@@ -879,7 +891,7 @@ def delete(id):
     db.session.delete(d)
     db.session.commit()
 
-    return redirect(url_for("template", token=[token], current_year=datetime.datetime.now().year))
+    return redirect(url_for("template", token=[token]))
 
 
 # Route for updating label information
@@ -894,7 +906,7 @@ def label(id):
     app.config["LABELS"][int(id) - 1]["name"] = name
     app.config["LABELS"][int(id) - 1]["dformat"] = dformat
 
-    return redirect(url_for("tagger", token=[token], current_year=datetime.datetime.now().year))
+    return redirect(url_for("tagger", token=[token]))
 
 
 # Route for sending images
@@ -909,7 +921,7 @@ def images(f):
 @login_required
 def download_list():
     Data = ExtractedFiles.query.filter_by(user_id=current_user.id).all()
-    return render_template("extracted_files.html", data=Data, current_year=datetime.datetime.now().year)
+    return render_template("extracted_files.html", data=Data)
 
 
 # Route for downloading data as JSON
@@ -965,7 +977,16 @@ def applyonfolder(id):
     with open("out.csv", "w") as f:
         f.write(data.cordinates)
 
-    return redirect(url_for("upload", id=id, token=[token], current_year=datetime.datetime.now().year))
+    return redirect(url_for("upload", id=id))
+
+
+@app.route("/setting", methods=["POST", "GET"])
+@login_required
+def setting():
+    d = tbl_user.query.filter_by(id=current_user.id).first()
+    return render_template(
+        "setting.html", status=int(d.status), dateformat=d.dateformat
+    )
 
 
 if __name__ == "__main__":
