@@ -1,7 +1,7 @@
 import jwt
 from PIL import Image
 from flask import Flask, render_template, request, redirect, url_for, abort, flash, send_file, jsonify, \
-    send_from_directory
+    send_from_directory, session
 from flask_login import UserMixin, logout_user, current_user, login_user, LoginManager, login_required
 from wtforms import StringField, PasswordField, SubmitField, MultipleFileField, FileField
 from wtforms.validators import InputRequired, Length
@@ -45,7 +45,7 @@ app.config["TEMP_Imagecode"] = ""
 app.config["Data"] = []
 app.config['UPLOAD_FOLDER'] = './static/uploads'  # Folder to store uploaded files
 app.config['STATIC_FOLDER'] = './static'  # Folder to serve static files
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///extract.db'  # Database connection
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///extract.db' # Database connection
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
 app.config["SECRET_KEY"] = "90a685b9e1477480d8c1cce1f545e0504c84d7f2041dc733ceabe26597a6b5f6"
@@ -162,6 +162,8 @@ def MainImg(user_id, image_folder, option, data):
         extract = ExtractedFiles(user_id=user_id, csvfilename=encoded_csv_filename)
         db.session.add(extract)
         db.session.commit()
+        # Clean up the saved file      
+        os.remove(image_folder)
         print(f"Extracted data Successfully!!")
 
 
@@ -486,9 +488,20 @@ def template():
                     if "pdf" not in os.path.splitext(filename)[1].lower():
                         app.config["TEMP_NAME"].insert(1, "Image")
                     else:
-                        app.config["TEMP_NAME"].insert(1, "Pdf")
-                        with open(file_path, "rb") as pdf_file:
-                            app.config["TEMP_Imagecode"] = base64.b64encode(pdf_file.read()).decode("UTF")
+                        # Convert PDF files to PNG using pdf2image
+                        pdf_path = os.path.join(app.config["UPLOAD_FOLDER"], "upload", secure_filename(file.filename))
+                        file.save(pdf_path)
+                        try:
+                            # Convert each PDF page to a PNG image
+                            first_page_images = convert_from_path(pdf_path, first_page=0, last_page=0)
+
+                            if first_page_images:
+                                png_path = os.path.join(app.config["TEMP_NAME"], f"page_1.png")
+                                first_page_images[0].save(png_path, format="PNG")  # Then save the file
+                            os.remove(pdf_path)
+                        except Exception as e:
+                            flash("PDF to PNG conversion error: " + str(e))
+                            print("PDF to PNG conversion error:", e)
             app.config["uploaded_files"].sort()
 
         for (dirpath, dirnames, filenames) in os.walk(os.path.join(app.config["UPLOAD_FOLDER"], "images")):
@@ -815,15 +828,6 @@ def upload(id):
                         pdf_image.save(png_path, format="PNG")  # Then save the file
 
             MainImg(current_user.id, folder_path, option, cor_data)
-            # Clean up the saved file
-            # List all files in the folder
-            file_list = os.listdir(folder_path)
-
-            # Loop through the files and delete each one
-            for file_name in file_list:
-                file_path = os.path.join(folder_path, file_name)
-                if os.path.isfile(file_path):
-                    os.remove(file_path)
 
         return redirect(url_for("download_list", token=[token]))
 
@@ -989,11 +993,20 @@ def setting():
     )
 
 
+@app.route('/switch_theme', methods=['GET', 'POST'])
+@login_required
+def switch_theme():
+    selected_theme = request.form.get('theme')
+    if selected_theme:
+        session['theme'] = selected_theme
+    return redirect(url_for('setting'))
+
+
 if __name__ == "__main__":
     with app.app_context():
         db.create_all()
     # Your Flask app run code
-    app.run(debug=True)
+    app.run()
     # Create and start the image processing thread
     thread = threading.Thread(target=MainImg, args=(user_id, image_folder, option, data))
     thread.start()
