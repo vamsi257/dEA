@@ -22,9 +22,13 @@
   <div class="container text-center my-5">
 
     <div class="col">
+    {% if session.theme == 'light' %}
       <div class="shadow-lg p-3 mb-5 bg-body rounded">
+    {% else %}
+        <div class="shadow-lg p-3 mb-5 color-body rounded">
+    {% endif %}
         <p><b>SELECT TEMPLATE (images/pdfs) </b></p>
-        <form enctype="multipart/form-data" method="post">
+        <form enctype="multipart/form-data" method="post"  class="theme-form {{ 'light-theme' if session.theme == 'light' else 'dark-theme' }}">
           <div class="input-group">
             <input id="file" name="file" type="file" multiple class="form-control" accept=".pdf,.jpg,.png,.tiff,.tif,.PDF,.JPEG,.jpeg" required/>
 <input type="text" placeholder="Enter Template Name Here" name="Temp_name" class="form-control" required>
@@ -40,14 +44,16 @@
 
       </div>
 
-
-        </form>
       <h5 class="container"><b>Saved Templates({{total}})</b></h5><br>
 
 
 
       {%if Data%}
-      <p class="text-dark" id="basic-addon2"><b>Search Template Name</b></p>
+          {% if session.theme == 'light' %}
+            <p class="text-dark" id="basic-addon2"><b>Search Template Name</b></p>
+          {% else %}
+              <p class="text-light" id="basic-addon2"><b>Search Template Name</b></p>
+          {% endif %}
       <div class="input-group mb-3">
 
         <input type="text" class="form-control" placeholder="Search template name" aria-label="Recipient's username"

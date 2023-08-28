@@ -1,10 +1,15 @@
 {% extends 'headfoot.html' %}
 {% block title %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+    <script src="{{ url_for('static', filename='js/theme-switcher.js') }}"></script>
+
 <title>DataExtractor | setting</title>
 {% endblock title %}
 {% block body %}
 <br><br><br>
+    <body onload="move('helpbutton')" class="{{ 'light-theme' if session.get('theme') == 'light' else 'dark-theme' }}">
+<script src="{{ url_for('static', filename='js/theme-switcher.js') }}"></script>
+
     {% for message in get_flashed_messages() %}
     <div class="alert alert-warning alert-dismissible fade show" role="alert" onclick="closeAlert(this)">
         {{ message }}
@@ -61,11 +66,38 @@
 </svg></button>
     
     </div></li>
+<li>
+    <label>Theme:</label>
+    <input type="radio" name="theme" value="light" {% if session.theme == 'light' %}checked{% endif %}>Light
+    <input type="radio" name="theme" value="dark" {% if session.theme == 'dark' %}checked{% endif %}>Dark
+{% if session.theme == "light" %}
+    <button type="button" class="btn btn-light" onclick="changeTheme()">Change Theme</button>
+{% else %}
+    <button type="button" class="btn btn-dark" onclick="changeTheme()">Change Theme</button>
+{% endif %}
+</li>
+
+
+
+    <!-- Include the theme-switcher.js JavaScript file -->
+    <script src="{{ url_for('static', filename='js/theme-switcher.js') }}"></script>
+
+<script>
+    function changeTheme() {
+        let selectedTheme = document.querySelector('input[name="theme"]:checked').value;
+        let token = "{{ token }}";  // Replace with the actual token value
+
+        // Update the theme in the session using a URL parameter
+        window.location.href = `/switch_theme?theme=${selectedTheme}&token=${token}`;
+    }
+</script>
+
+
+
+
+
+</li>
 </ol>
-
-
-
-
 
 <script>
 

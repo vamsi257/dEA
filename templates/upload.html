@@ -41,7 +41,7 @@
  <title>DataExtractor | Upload</title>
  {% endblock title %}
  {% block body %}
-     <br><br><br>
+     <br>
   {% for message in get_flashed_messages() %}
     <div class="alert alert-warning alert-dismissible fade show" role="alert" onclick="closeAlert(this)">
         {{ message }}
@@ -61,10 +61,18 @@
   <div class="alert alert-success container my-3" role="alert" id="hide">
     Folder in process...
   </div>
-        <div class="container2">
+     {% if session.theme == 'light' %}
+        <div class="container2 bg-light">
+     {% else %}
+         <div class="container2 bg-dark">
+     {% endif %}
           
-               <form method='POST' enctype='multipart/form-data' class="mx-3">
-                <div class="card" style="height: auto;">
+ <form method='POST' enctype='multipart/form-data' class="mx-3">
+     {% if session.theme == 'light' %}
+         <div class="card bg-light" style="height: auto;">
+     {% else %}
+         <div class="card bg-dark" style="height: auto;">
+     {% endif %}
                   <h3>Upload Folder</h3>
                   <div class="drop_box mx-3">
                     <header>
