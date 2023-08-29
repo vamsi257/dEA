@@ -173,7 +173,7 @@ def schedule_extraction(user_id, image_folder, option, data, scheduled_time):
 
     if extraction_time < current_time:
         flash("Scheduled time should be in the future.")
-        return redirect(url_for(template))
+        return redirect(url_for("template"))
 
     time_difference = (extraction_time - current_time).total_seconds()
     timer = threading.Timer(time_difference, MainImg, args=(user_id, image_folder, option, data,))
@@ -537,75 +537,77 @@ def serve_image(filename):
 @token_required
 @login_required
 def tagger():
-    current_year = datetime.datetime.now().year
-    token = request.args.get("token")
-    done = request.args.get("done")
-    image = request.args.get("image")
-    if done == "Yes":
-        with open(app.config["OUT"], "a") as f:
-            for label in app.config["LABELS"]:
-                f.write(label["id"]
-                        + ","
-                        + label["name"]
-                        + ","
-                        + str(round(float(label["xMin"])))
-                        + ","
-                        + str(round(float(label["xMax"])))
-                        + ","
-                        + str(round(float(label["yMin"])))
-                        + ","
-                        + str(round(float(label["yMax"])))
-                        + ","
-                        + str(label["dformat"])
-                        + "\n"
-                        )
-                # coTox(image,label["id"],label["name"],round(float(label["xMin"])),round(float(label["yMin"])),round(float(label["xMax"])),round(float(label["yMax"])))
-        with open(app.config["OUT"], "r") as s:
-            data = s.read()
-        x = datetime.datetime.now(timezone("Asia/Kolkata"))
-        cordinates = data
-        templateName = app.config["TEMP_NAME"][0]
-        Template_format = app.config["TEMP_NAME"][1]
-        print(Template_format)
-        current_time = x.strftime("%I:%M:%S %p")
-        Date = f"{x.day}/{x.month}/{x.year}"
-        Day = x.strftime("%A")
-        adddata = Cordinate_Data(
-            cordinates=cordinates,
-            user_id=current_user.id,
-            Tem_name=templateName,
-            Date=Date,
-            Time=current_time,
-            Day=Day,
-            tempimage=app.config["TEMP_Imagecode"],
-            file=image,
-            Tem_format=Template_format,
-        )
-        db.session.add(adddata)
-        db.session.commit()
-        with open(app.config["OUT"], "r+") as f:
-            f.truncate(0)
-        return redirect(url_for("temp_success"))
-    # image = app.config["FILES"][app.config["HEAD"]]
-    # image=str(app.config["HEAD"])+".jpg"
-    if type(app.config["uploaded_files"][app.config["HEAD"]]) == str:
-        image = app.config["FILES"][app.config["HEAD"]]
-    else:
-        image = str(app.config["uploaded_files"][app.config["HEAD"]])
-    labels = app.config["LABELS"]
-    not_end = not (app.config["HEAD"] == len(app.config["FILES"]) - 1)
-    d = tbl_user.query.filter_by(id=current_user.id).first()
-    return render_template(
-        "tagger.html",
-        current_year=current_year,
-        not_end=not_end,
-        image=image,
-        labels=labels,
-        head=app.config["HEAD"] + 1,
-        len=len(app.config["FILES"]),
-        token=token,
-        status=int(d.status),
-    )
+    try:
+        token = request.args.get("token")
+        done = request.args.get("done")
+        image = request.args.get("image")
+        if done == "Yes":
+            with open(app.config["OUT"], "a") as f:
+                for label in app.config["LABELS"]:
+                    f.write(label["id"]
+                            + ","
+                            + label["name"]
+                            + ","
+                            + str(round(float(label["xMin"])))
+                            + ","
+                            + str(round(float(label["xMax"])))
+                            + ","
+                            + str(round(float(label["yMin"])))
+                            + ","
+                            + str(round(float(label["yMax"])))
+                            + ","
+                            + str(label["dformat"])
+                            + "\n"
+                            )
+                    # coTox(image,label["id"],label["name"],round(float(label["xMin"])),round(float(label["yMin"])),round(float(label["xMax"])),round(float(label["yMax"])))
+            with open(app.config["OUT"], "r") as s:
+                data = s.read()
+            x = datetime.datetime.now(timezone("Asia/Kolkata"))
+            cordinates = data
+            templateName = app.config["TEMP_NAME"][0]
+            Template_format = app.config["TEMP_NAME"][1]
+            print(Template_format)
+            current_time = x.strftime("%I:%M:%S %p")
+            Date = f"{x.day}/{x.month}/{x.year}"
+            Day = x.strftime("%A")
+            adddata = Cordinate_Data(
+                cordinates=cordinates,
+                user_id=current_user.id,
+                Tem_name=templateName,
+                Date=Date,
+                Time=current_time,
+                Day=Day,
+                tempimage=app.config["TEMP_Imagecode"],
+                file=image,
+                Tem_format=Template_format,
+            )
+            db.session.add(adddata)
+            db.session.commit()
+            with open(app.config["OUT"], "r+") as f:
+                f.truncate(0)
+            return redirect(url_for("temp_success"))
+        # image = app.config["FILES"][app.config["HEAD"]]
+        # image=str(app.config["HEAD"])+".jpg"
+        if type(app.config["uploaded_files"][app.config["HEAD"]]) == str:
+            image = app.config["FILES"][app.config["HEAD"]]
+        else:
+            image = str(app.config["uploaded_files"][app.config["HEAD"]])
+        labels = app.config["LABELS"]
+        not_end = not (app.config["HEAD"] == len(app.config["FILES"]) - 1)
+        d = tbl_user.query.filter_by(id=current_user.id).first()
+
+        return render_template(
+                "tagger.html",
+                not_end=not_end,
+                image=image,
+                labels=labels,
+                head=app.config["HEAD"] + 1,
+                len=len(app.config["FILES"]),
+                token=token,
+                status=int(d.status),
+            )
+    except IndexError:
+        return render_template("nolong.html")
 
 
 @app.route("/next")
