@@ -102,8 +102,8 @@
                   </div>
 
 
-                  <label>Extraction Time</label><br>
-                      <input type="datetime-local" id="scheduled_time" name="scheduled_time">
+                  <label for="scheduled_time" id="scheduled_time_label" style="display: none;">Extraction Time</label><br>
+<input type="datetime-local" id="scheduled_time" name="scheduled_time" style="display: none;">
 <br>
 
                     
@@ -139,8 +139,25 @@
     </div>
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
     <script src="{{ url_for('static', filename='js/upload.js') }}"></script>
-   
+
+     <script>
+    document.getElementById("choose-scheduler").addEventListener("change", function() {
+        var scheduledTimeLabel = document.getElementById("scheduled_time_label");
+        var scheduledTimeInput = document.getElementById("scheduled_time");
+
+        if (this.checked) {
+            scheduledTimeLabel.style.display = "block";
+            scheduledTimeInput.style.display = "block";
+        } else {
+            scheduledTimeLabel.style.display = "none";
+            scheduledTimeInput.style.display = "none";
+        }
+    });
+
+    // Initially, set the visibility based on the default checkbox state
+    document.getElementById("choose-scheduler").dispatchEvent(new Event("change"));
+</script>
+
 
     {% endblock body %}
-{% set sticky = True %}
  
