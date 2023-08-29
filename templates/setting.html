@@ -77,7 +77,21 @@
 {% endif %}
 </li>
 
-
+  <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasRight" aria-labelledby="offcanvasRightLabel">
+    <div class="offcanvas-header">
+      <h5 id="offcanvasRightLabel">Instructions</h5>
+      <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <div class="offcanvas-body">
+        <ul>
+      <li><b>Help Button</b>: It is used to enable or disable help button.</li>
+      <br>
+      <li><b>Time Format</b>: It is used to change the time format.</li>
+      <br>
+      <li><b>Theme</b>: It is used to change the light and dark theme.</li>
+        </ul>
+    </div>
+  </div>
 
     <!-- Include the theme-switcher.js JavaScript file -->
     <script src="{{ url_for('static', filename='js/theme-switcher.js') }}"></script>
