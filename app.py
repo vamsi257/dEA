@@ -162,8 +162,18 @@ def MainImg(user_id, image_folder, option, data):
         extract = ExtractedFiles(user_id=user_id, csvfilename=encoded_csv_filename)
         db.session.add(extract)
         db.session.commit()
-        # Clean up the saved file      
-        os.remove(image_folder)
+        try:
+            # Clean up the saved file
+            # List all files in the folder
+            file_list = os.listdir(image_folder)
+
+            # Loop through the files and delete each one
+            for file_name in file_list:
+                file_path = os.path.join(image_folder, file_name)
+                if os.path.isfile(file_path):
+                    os.remove(file_path)
+        except Exception as e:
+            print(f"Error while removing folder: {e}")
         print(f"Extracted data Successfully!!")
 
 
