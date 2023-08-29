@@ -617,7 +617,7 @@ def tagger():
                 status=int(d.status),
             )
     except IndexError:
-        return render_template("nolong.html")
+        return redirect(url_for("template"))
 
 
 @app.route("/next")
