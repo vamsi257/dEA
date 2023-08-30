@@ -182,7 +182,6 @@ def schedule_extraction(user_id, image_folder, option, data, scheduled_time):
     extraction_time = datetime.datetime.strptime(scheduled_time, "%Y-%m-%dT%H:%M")
 
     if extraction_time < current_time:
-        flash("Scheduled time should be in the future.")
         return redirect(url_for("template"))
 
     time_difference = (extraction_time - current_time).total_seconds()
@@ -426,8 +425,6 @@ def token_required(f):
 @login_required
 def logout():
     logout_user()
-    current_year = datetime.datetime.now().year
-    flash("You Have Been Logged Out!")
     return redirect(url_for('login'))
 
 
@@ -439,8 +436,6 @@ def allowed_file(filename):
 @app.route('/temp_success', methods=['GET', 'POST'])
 @login_required
 def temp_success():
-    current_year = datetime.datetime.now().year
-    flash("Template uploaded successfully!")
     return render_template("temp.html")
 
 
@@ -510,7 +505,6 @@ def template():
                                 first_page_images[0].save(png_path, format="PNG")  # Then save the file
                             os.remove(pdf_path)
                         except Exception as e:
-                            flash("PDF to PNG conversion error: " + str(e))
                             print("PDF to PNG conversion error:", e)
             app.config["uploaded_files"].sort()
 
@@ -974,7 +968,6 @@ def download(id):
         )
 
     except NoResultFound:
-        flash("No data found for the specified ID.")
         return redirect(url_for("dashboard"))
 
 
