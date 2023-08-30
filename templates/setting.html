@@ -10,21 +10,6 @@
     <body onload="move('helpbutton')" class="{{ 'light-theme' if session.get('theme') == 'light' else 'dark-theme' }}">
 <script src="{{ url_for('static', filename='js/theme-switcher.js') }}"></script>
 
-    {% for message in get_flashed_messages() %}
-    <div class="alert alert-warning alert-dismissible fade show" role="alert" onclick="closeAlert(this)">
-        {{ message }}
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
-{% endfor %}
-
-<script>
-    function closeAlert(alertElement) {
-        alertElement.classList.remove("show");
-        setTimeout(function() {
-            alertElement.style.display = "none";
-        }, 500);
-    }
-</script>
 
 <ol>
     <li>
