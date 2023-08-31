@@ -344,7 +344,6 @@ def signup():
 # login
 @app.route("/login", methods=["GET", "POST"])
 def login():
-    current_year = datetime.datetime.now().year
     form = LoginForm()
     if form.validate_on_submit():
         # Get user details from the login form.
@@ -424,6 +423,10 @@ def token_required(f):
 @app.route('/logout', methods=['GET', 'POST'])
 @login_required
 def logout():
+    user = tbl_user.query.filter_by(id=current_user.id).first()
+    user.token = ""
+    db.session.add(user)
+    db.session.commit()
     logout_user()
     return redirect(url_for('login'))
 
@@ -542,7 +545,7 @@ def serve_image(filename):
 @login_required
 def tagger():
     try:
-        token = request.args.get("token")
+        token = current_user.token
         done = request.args.get("done")
         image = request.args.get("image")
         if done == "Yes":
@@ -618,7 +621,7 @@ def tagger():
 @token_required
 @login_required
 def next():
-    token = request.args.get("token")
+    token = current_user.token
     done = request.args.get("done")
     app.config["HEAD"] = app.config["HEAD"] + 1
     with open(app.config["OUT"], "a") as f:
@@ -647,7 +650,7 @@ def next():
 @token_required
 @login_required
 def previous():
-    token = request.args.get("token")
+    token = current_user.token
     done = request.args.get("done")
     # image = app.config["FILES"][app.config["HEAD"]]
     # image=str(app.config["HEAD"])+".jpg"
@@ -681,7 +684,7 @@ def previous():
 @token_required
 @login_required
 def add(id):
-    token = request.args.get("token")
+    token = current_user.token
     xMin = request.args.get("xMin")
     xMax = request.args.get("xMax")
     yMin = request.args.get("yMin")
@@ -704,7 +707,7 @@ def add(id):
 @token_required
 @login_required
 def remove(id):
-    token = request.args.get("token")
+    token = current_user.token
     index = int(id) - 1
     del app.config["LABELS"][index]
     for label in app.config["LABELS"][index:]:
@@ -719,7 +722,7 @@ def remove(id):
 def upload(id):
     files = None
     already_posted_files = "no"
-    token = request.args.get("token")
+    token = current_user.token
     app.config["HEAD"] = 0
     date = request.form.get("date")
     time = request.form.get("time")
@@ -857,7 +860,7 @@ def upload(id):
 @login_required
 def Helpchange():
     # Get the 'token' and 'status' from the request arguments
-    token = request.args.get("token")
+    token = current_user.token
     status = request.args.get("status")
 
     # Update the status of the user in the database
@@ -875,7 +878,7 @@ def Helpchange():
 def FormatChange():
     print("hello" * 50)
     # Get the 'token' and 'dateformat' from the request arguments
-    token = request.args.get("token")
+    token = current_user.token
     dateformat = request.args.get("dateformat")
 
     # Update the date format of the user in the database
@@ -894,7 +897,7 @@ def FormatChange():
 @login_required
 def delete(id):
     # Get the 'token' from the request arguments
-    token = request.args.get("token")
+    token = current_user.token
 
     # Delete data from the Cordinate_Data table for the specified user
     d = Cordinate_Data.query.filter_by(cord_id=id, user_id=current_user.id).first()
@@ -908,7 +911,7 @@ def delete(id):
 @app.route("/label/<id>")
 def label(id):
     # Get the 'token', 'name', and 'dformat' from the request arguments
-    token = request.args.get("token")
+    token = current_user.token
     name = request.args.get("name")
     dformat = request.args.get("dformat")
     print(id, name, dformat)
@@ -977,7 +980,7 @@ def download(id):
 @login_required
 def applyonfolder(id):
     # Get the 'token' from the request arguments
-    token = request.args.get("token")
+    token = current_user.token
 
     # Fetch Cordinate_Data for the specified id and user
     data = Cordinate_Data.query.filter_by(cord_id=id, user_id=current_user.id).first()
