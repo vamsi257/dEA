@@ -27,7 +27,7 @@ import cv2
 import pytesseract
 import threading
 import os
-from google.cloud import visio
+from google.cloud import vision
 
 # Define a list to store coordinates (regions of interest).
 roi_coordinates = []
