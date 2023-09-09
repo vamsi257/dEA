@@ -28,6 +28,7 @@ import pytesseract
 import threading
 import os
 from google.cloud import vision
+# from flask_migrate import Migrate
 
 # Define a list to store coordinates (regions of interest).
 roi_coordinates = []
@@ -57,6 +58,7 @@ app.config["ALLOWED_EXTENSIONS"] = {"png", "jpg", "jpeg", "gif", "pdf", 'tif', '
 
 # Initialize the database using SQLAlchemy.
 db = SQLAlchemy(app)
+# migrate = Migrate(app, db)
 login_manager = LoginManager()  # To manage Login
 login_manager.init_app(app)
 login_manager.login_view = "login"
