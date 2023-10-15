@@ -3,8 +3,8 @@ from PIL import Image
 from flask import Flask, render_template, request, redirect, url_for, abort, flash, send_file, jsonify, \
     send_from_directory, session
 from flask_login import UserMixin, logout_user, current_user, login_user, LoginManager, login_required
-from wtforms import StringField, PasswordField, SubmitField, MultipleFileField, FileField
-from wtforms.validators import InputRequired, Length
+from wtforms import StringField, PasswordField, SubmitField, MultipleFileField, FileField, RadioField
+from wtforms.validators import InputRequired, Length, Email
 from flask_wtf import FlaskForm
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, timedelta
@@ -28,13 +28,15 @@ import pytesseract
 import threading
 import os
 from google.cloud import vision
+import smtplib
+
 # from flask_migrate import Migrate
 
 # Define a list to store coordinates (regions of interest).
 roi_coordinates = []
 
 # Create a Flask app instance.
-app = Flask(__name__)
+app = Flask(__name__, template_folder='templates', static_folder='static')
 
 # Configuration settings for the app.
 app.config["IMAGES"] = "./static/upload/images"
@@ -46,7 +48,7 @@ app.config["TEMP_Imagecode"] = ""
 app.config["Data"] = []
 app.config['UPLOAD_FOLDER'] = './static/uploads'  # Folder to store uploaded files
 app.config['STATIC_FOLDER'] = './static'  # Folder to serve static files
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///extract.db' # Database connection
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///extract.db'  # Database connection
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
 app.config["SECRET_KEY"] = "90a685b9e1477480d8c1cce1f545e0504c84d7f2041dc733ceabe26597a6b5f6"
@@ -72,6 +74,26 @@ bcrypt = Bcrypt(app)
 @login_manager.user_loader
 def load_user(user_id):
     return tbl_user.query.get(int(user_id))
+
+
+def mail(email, content, sub):
+    MY_EMAIL = "testappmail2023@gmail.com"
+    MY_PASSWORD = "qykebkmdnxhxwywk"
+    with smtplib.SMTP("smtp.gmail.com") as connection:
+        connection.starttls()
+        connection.login(MY_EMAIL, MY_PASSWORD)
+        connection.sendmail(
+            from_addr=MY_EMAIL,
+            to_addrs=email,
+            msg=f"Subject:{sub}\n\n{content}"
+        )
+
+
+def get_mac_address():
+    # Get the MAC address of the first network interface
+    mac = uuid.UUID(int=uuid.getnode()).hex[-12:]
+    mac_address = ':'.join([mac[e:e + 2] for e in range(0, 11, 2)])
+    return mac_address
 
 
 def detectText(content):
@@ -164,18 +186,6 @@ def MainImg(user_id, image_folder, option, data):
         extract = ExtractedFiles(user_id=user_id, csvfilename=encoded_csv_filename)
         db.session.add(extract)
         db.session.commit()
-        try:
-            # Clean up the saved file
-            # List all files in the folder
-            file_list = os.listdir(image_folder)
-
-            # Loop through the files and delete each one
-            for file_name in file_list:
-                file_path = os.path.join(image_folder, file_name)
-                if os.path.isfile(file_path):
-                    os.remove(file_path)
-        except Exception as e:
-            print(f"Error while removing folder: {e}")
         print(f"Extracted data Successfully!!")
 
 
@@ -196,27 +206,44 @@ def schedule_extraction(user_id, image_folder, option, data, scheduled_time):
 class tbl_user(db.Model, UserMixin):  # User table
     id = db.Column(db.Integer, primary_key=True)
     Name = db.Column(db.String(20), nullable=True)
-    username = db.Column(db.String(20), nullable=True, unique=True)
+    email = db.Column(db.String(50), nullable=False)
+    username = db.Column(db.String(20), nullable=False, unique=True)
     password = db.Column(db.String(80), nullable=False)
+    type = db.Column(db.String(20), default="User")
     status = db.Column(db.Integer)
     token = db.Column(db.String(1000))
     dateformat = db.Column(db.String(80), nullable=False, default="No")
     Date_time = db.Column(db.DateTime, default=datetime.datetime.now(timezone('Asia/Kolkata')))
-    ip = db.Column(db.String(20), default="None")
+    mac = db.Column(db.String(20))
+    ip = db.Column(db.String(20))
     data = db.relationship("Cordinate_Data", backref="author", lazy=True)
 
     def __repr__(self) -> str:
         return "<tbl_user %r>" % self.User_Name
 
 
-class Task(db.Model):
-    task_id = db.Column(db.Integer, primary_key=True)
-    date = db.Column(db.String(50))
-    time = db.Column(db.String(50))
-    filenames = db.Column(db.LargeBinary)
-    filetype = db.Column(db.String(50))
-    result = db.Column(db.String(50))
-    status = db.Column(db.String(50))
+class req_user(db.Model, UserMixin):  # requested user table
+    id = db.Column(db.Integer, primary_key=True)
+    Name = db.Column(db.String(20), nullable=True)
+    email = db.Column(db.String(50), nullable=False)
+    username = db.Column(db.String(20), nullable=False, unique=True)
+    password = db.Column(db.String(80), nullable=False)
+    type = db.Column(db.String(20), default="User")
+    status = db.Column(db.Integer)
+    token = db.Column(db.String(1000))
+    dateformat = db.Column(db.String(80), nullable=False, default="No")
+    Date_time = db.Column(db.DateTime, default=datetime.datetime.now(timezone('Asia/Kolkata')))
+    mac = db.Column(db.String(20))
+    ip = db.Column(db.String(20))
+
+
+class ip_req(db.Model, UserMixin):  # requested user table
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(20), nullable=False)
+    email = db.Column(db.String(20), nullable=False)
+    mac = db.Column(db.String(20))
+    ip = db.Column(db.String(20))
+    Date_time = db.Column(db.DateTime, default=datetime.datetime.now(timezone('Asia/Kolkata')))
 
 
 class ExtractedFiles(db.Model):
@@ -227,26 +254,7 @@ class ExtractedFiles(db.Model):
     csvfilename = db.Column(db.LargeBinary)
 
 
-def save_task(date, time, filenames, filetype):
-    date = request.form.get("date")
-    time = request.form.get("time")
-    filenames = request.form.getlist("filenames")
-    filetype = request.form.get("filetype")
-
-    # Serialize filenames using pickle
-    serialized_filenames = pickle.dumps(filenames)
-
-    # Create a new Task object
-    new_task = Task(date=date, time=time, filenames=serialized_filenames, filetype=filetype, status='pending')
-
-    # Add the task to the database
-    db.session.add(new_task)
-    db.session.commit()
-
-    return new_task.task_id
-
-
-class Cordinate_Data(UserMixin, db.Model):  # Coordinate table
+class Cordinate_Data(db.Model):  # Coordinate table
     __tablename__ = "cordinate_data"
     cord_id = db.Column(db.Integer, primary_key=True)
     Tem_name = db.Column(db.String(80), nullable=False)
@@ -257,6 +265,7 @@ class Cordinate_Data(UserMixin, db.Model):  # Coordinate table
     Day = db.Column(db.String(80), nullable=False)
     tempimage = db.Column(db.Text)
     file = db.Column(db.Text)
+    folder = db.Column(db.String(80))
     user_id = db.Column(db.Integer, db.ForeignKey("tbl_user.id"), nullable=False)
 
     def __repr__(self) -> str:
@@ -273,10 +282,15 @@ class RegisterForm(FlaskForm):
         validators=[InputRequired(), Length(min=4, max=20)],
         render_kw={"placeholder": "Username"},
     )
+    email = StringField(
+        validators=[InputRequired(), Email(message='Invalid email'), Length(max=50)],
+        render_kw={"placeholder": "Email"},
+    )
     password = PasswordField(
         validators=[InputRequired(), Length(min=8, max=20)],
         render_kw={"placeholder": "Password"},
     )
+
     submit = SubmitField("Register")
 
 
@@ -304,48 +318,125 @@ class UploadFileForm(FlaskForm):
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    current_year = datetime.datetime.now().year
     name = current_user.Name
     username = current_user.username
     date = current_user.Date_time
-    row = [name, current_user.id, username, date]
+    type1 = current_user.type
+    row = [name, current_user.id, username, date, type1]
     return render_template('dashboard.html', data=row)
 
 
 # registration
 @app.route("/register", methods=["GET", "POST"])
 def signup():
-    current_year = datetime.datetime.now().year
     form = RegisterForm()
-    if request.method == 'POST':
-        # Get user details from the registration form.
-        username = form.username.data
-        user = tbl_user.query.filter_by(username=username).first()
-        if user:
-            # If user already exists, show a flash message.
-            flash("You already having the account on this email!")
-            return render_template("login.html")
-        else:
-            # Hash the password and create a new user in the database.
-            hashed_password = bcrypt.generate_password_hash(form.password.data)
-            hostname = socket.gethostname()
-            IPadd = socket.gethostbyname(hostname)
-            new_user = tbl_user(
-                Name=form.Name.data,
-                username=form.username.data,
-                password=hashed_password,
-                status=0,
-                ip=str(IPadd),
-            )
-            db.session.add(new_user)
-            db.session.commit()
-            return redirect(url_for("login"))
-    return render_template("register.html", form=form)
+    if (current_user.is_authenticated and current_user.type == "Admin") or not current_user.is_authenticated:
+        if request.method == 'POST':
+            # Get user details from the registration form.
+            username = form.username.data
+            user = tbl_user.query.filter_by(username=username).first()
+            if user:
+                # If user already exists, show a flash message.
+                flash("You already having the account on this username!")
+                return redirect(url_for("login"))
+            else:
+                if form.username.data == "Admin":
+                    # Hash the password and create a new user in the database.
+                    hashed_password = bcrypt.generate_password_hash(form.password.data)
+                    hostname = socket.gethostname()
+                    IPadd = socket.gethostbyname(hostname)
+                    new_user = tbl_user(
+                        Name=form.Name.data,
+                        username=form.username.data,
+                        email=form.email.data,
+                        password=hashed_password,
+                        type="Admin",
+                        status=0,
+                        ip=str(IPadd),
+                        mac=get_mac_address()
+                    )
+                    try:
+                        sub = "Created Admin Account"
+                        content = "Admin account was created successfully!!"
+                        mail(email=form.email.data, content=content, sub=sub)
+                    except:
+                        flash("Enter the valid MailId")
+                        return redirect(url_for("signup"))
+                    db.session.add(new_user)
+                    db.session.commit()
+
+                    flash("Admin account was created!")
+                    return redirect(url_for("login"))
+                else:
+                    if current_user.is_authenticated:
+                        hashed_password = bcrypt.generate_password_hash(form.password.data)
+                        hostname = socket.gethostname()
+                        IPadd = socket.gethostbyname(hostname)
+                        type1 = request.form["type"]
+                        username = form.username.data
+                        email = form.email.data
+                        password = hashed_password
+                        status = 0
+                        ip = str(IPadd)
+                        mac = get_mac_address()
+                        new_user = tbl_user(
+                            Name=form.Name.data,
+                            username=username,
+                            email=email,
+                            password=password,
+                            status=status,
+                            type=type1,
+                            ip=ip,
+                            mac=mac
+                        )
+                        db.session.add(new_user)
+                        db.session.commit()
+                        sub = f"Your Account was created as the role of {type1}"
+                        content = (
+                            f"Your account with \n Username:{username} \n Password:{form.password.data} \n Role:{type1}"
+                            f"\nwas created successfully")
+                        mail(sub=sub, content=content, email=email)
+                        flash("Account was created.")
+                        return redirect(url_for("template"))
+                    # Hash the password and create a new user in the database.
+                    else:
+                        hashed_password = bcrypt.generate_password_hash(form.password.data)
+                        hostname = socket.gethostname()
+                        IPadd = socket.gethostbyname(hostname)
+                        username = form.username.data
+                        email = form.email.data
+                        password = hashed_password
+                        status = 0
+                        ip = str(IPadd)
+                        mac = get_mac_address()
+                        new_user = req_user(
+                            Name=form.Name.data,
+                            username=username,
+                            email=email,
+                            password=password,
+                            status=status,
+                            ip=ip,
+                            mac=mac
+                        )
+                        db.session.add(new_user)
+                        db.session.commit()
+                        sub = "Requesting for new Account"
+                        content = (
+                            f"Your request for your account with \n Username:{username} \n IP : {ip} \n Mac : {mac} \n"
+                            f"was submitted successfully")
+                        mail(sub=sub, content=content, email=email)
+                        flash("Request for the new user was submitted!")
+                        return redirect(url_for("login"))
+        return render_template("register.html", form=form)
+    else:
+        return redirect(url_for("template"))
 
 
 # login
-@app.route("/login", methods=["GET", "POST"])
+@app.route("/", methods=["GET", "POST"])
 def login():
+    if current_user:
+        logout_user()
     form = LoginForm()
     if form.validate_on_submit():
         # Get user details from the login form.
@@ -359,10 +450,27 @@ def login():
                 db.session.add(user)
                 db.session.commit()
                 return redirect(url_for('login'))
-            elif user.ip != IPadd:
-                # If user's IP address does not match, show an error message.
-                abort(400, "You cannot access this application, contact to owner")
-            elif bcrypt.check_password_hash(user.password, form.password.data) and user.ip == str(IPadd):
+            elif user.ip != str(IPadd):
+                flash("Your Ip was not registered!!")
+                return redirect(url_for('login'))
+            elif bcrypt.check_password_hash(user.password, form.password.data) and (user.type == "Admin" or
+                                                                                    user.type == "Employee"):
+                login_user(user)
+                token = jwt.encode(
+                    {
+                        "user": form.username.data,
+                        "exp": datetime.datetime.utcnow() + timedelta(minutes=60),
+                    },
+                    app.config["SECRET_KEY"],
+                )
+                user.token = token
+                user.ip = str(IPadd)
+                user.mac = get_mac_address()
+                db.session.add(user)
+                db.session.commit()
+                return redirect(url_for("template"))
+            elif bcrypt.check_password_hash(user.password, form.password.data) and (user.ip == str(IPadd) or
+                                                                                    user.mac == get_mac_address()):
                 # If the password is correct and IP address matches, log the user in.
                 login_user(user)
                 token = jwt.encode(
@@ -445,7 +553,7 @@ def temp_success():
 
 
 # Route for managing uploads of templates and image/PDF files.
-@app.route("/", methods=["GET", "POST"])
+@app.route("/template", methods=["GET", "POST"])
 @login_required
 def template():
     current_year = datetime.datetime.now().year
@@ -456,13 +564,12 @@ def template():
     app.config["TEMP_NAME"] = []
     app.config["TEMP_Imagecode"] = ""
     app.config["Data"] = []
-    file_list = os.listdir(app.config["IMAGES"])
-
-    # Loop through the files and delete each one
-    for file_name in file_list:
-        file_path = os.path.join(app.config["IMAGES"], file_name)
-        if os.path.isfile(file_path):
-            os.remove(file_path)
+    folder = str(uuid.uuid1())
+    try:
+        os.mkdir(f"./{app.config['IMAGES']}/{folder}")
+    except:
+        pass
+    session['folder'] = folder
     form = UploadFileForm()
     # Open the CSV file in write mode, which will overwrite the existing data
     with open("./out.csv", 'w', newline='') as csv_file:
@@ -492,9 +599,9 @@ def template():
             for file in files:
                 if file and allowed_file(file.filename):
                     filename = secure_filename(file.filename)
-                    file_path = os.path.join(app.config["UPLOAD_FOLDER"], "images", filename)
+                    file_path = os.path.join(app.config["UPLOAD_FOLDER"], "images", folder, filename)
                     file.save(file_path)  # Save the file to the desired path
-                    app.config["uploaded_files"].append(filename)
+                    app.config["uploaded_files"].append(folder + '/' + filename)
                     if "pdf" not in os.path.splitext(filename)[1].lower():
                         app.config["TEMP_NAME"].insert(1, "Image")
                     else:
@@ -513,12 +620,13 @@ def template():
                             print("PDF to PNG conversion error:", e)
             app.config["uploaded_files"].sort()
 
-        for (dirpath, dirnames, filenames) in os.walk(os.path.join(app.config["UPLOAD_FOLDER"], "images")):
+        for (dirpath, dirnames, filenames) in os.walk(os.path.join(app.config["UPLOAD_FOLDER"], "images", folder)):
             files = filenames
             break
         print("filenames:", files)
         app.config["FILES"] = files
-        return redirect(f"/tagger?token={token}", code=302)
+        print(f"Redirecting to tagger with folder: {folder}")
+        return redirect(url_for('tagger', token=token, folder=folder))
     else:
         # Fetch data related to templates from the database.
         Data = Cordinate_Data.query.filter_by(user_id=current_user.id).all()
@@ -535,17 +643,17 @@ def template():
         )
 
 
-@app.route("/image/<filename>")
-def serve_image(filename):
-    images_folder = app.config["IMAGES"]
+@app.route("/image/<folder>/<filename>")
+def serve_image(folder, filename):
+    images_folder = os.path.join("static", "upload", "images", folder)
     return send_from_directory(images_folder, filename)
 
 
 # Route for tagging images and PDFs with coordinates.
-@app.route("/tagger", methods=["GET", "POST"])
+@app.route("/tagger/<folder>", methods=["GET", "POST"])
 @token_required
 @login_required
-def tagger():
+def tagger(folder):
     try:
         token = current_user.token
         done = request.args.get("done")
@@ -587,6 +695,7 @@ def tagger():
                 Time=current_time,
                 Day=Day,
                 tempimage=app.config["TEMP_Imagecode"],
+                folder=session.get('folder'),
                 file=image,
                 Tem_format=Template_format,
             )
@@ -595,8 +704,7 @@ def tagger():
             with open(app.config["OUT"], "r+") as f:
                 f.truncate(0)
             return redirect(url_for("temp_success"))
-        # image = app.config["FILES"][app.config["HEAD"]]
-        # image=str(app.config["HEAD"])+".jpg"
+
         if type(app.config["uploaded_files"][app.config["HEAD"]]) == str:
             image = app.config["FILES"][app.config["HEAD"]]
         else:
@@ -606,15 +714,16 @@ def tagger():
         d = tbl_user.query.filter_by(id=current_user.id).first()
 
         return render_template(
-                "tagger.html",
-                not_end=not_end,
-                image=image,
-                labels=labels,
-                head=app.config["HEAD"] + 1,
-                len=len(app.config["FILES"]),
-                token=token,
-                status=int(d.status),
-            )
+            "tagger.html",
+            folder=folder,
+            not_end=not_end,
+            image=image,
+            labels=labels,
+            head=app.config["HEAD"] + 1,
+            len=len(app.config["FILES"]),
+            token=token,
+            status=int(d.status),
+        )
     except IndexError:
         return redirect(url_for("template"))
 
@@ -625,6 +734,7 @@ def tagger():
 def next():
     token = current_user.token
     done = request.args.get("done")
+    folder = session.get('folder')
     app.config["HEAD"] = app.config["HEAD"] + 1
     with open(app.config["OUT"], "a") as f:
         for label in app.config["LABELS"]:
@@ -645,7 +755,7 @@ def next():
                     )
             # coTox(image,label["id"],label["name"],round(float(label["xMin"])),round(float(label["yMin"])),round(float(label["xMax"])),round(float(label["yMax"])))
     app.config["LABELS"] = []
-    return redirect(url_for("tagger", token=[token], done=[done]))
+    return redirect(url_for("tagger", token=[token], done=[done], folder=folder))
 
 
 @app.route("/previous")
@@ -654,6 +764,7 @@ def next():
 def previous():
     token = current_user.token
     done = request.args.get("done")
+    folder = session.get('folder')
     # image = app.config["FILES"][app.config["HEAD"]]
     # image=str(app.config["HEAD"])+".jpg"
     image = str(app.config["uploaded_files"][app.config["HEAD"]])
@@ -679,7 +790,7 @@ def previous():
     app.config["LABELS"] = []
 
     app.config["HEAD"] = app.config["HEAD"] - 1
-    return redirect(url_for("tagger", token=[token], done=[done], image=[image]))
+    return redirect(url_for("tagger", token=[token], folder=folder, done=[done], image=[image]))
 
 
 @app.route("/add/<id>")
@@ -687,6 +798,7 @@ def previous():
 @login_required
 def add(id):
     token = current_user.token
+    folder = session.get('folder')
     xMin = request.args.get("xMin")
     xMax = request.args.get("xMax")
     yMin = request.args.get("yMin")
@@ -702,7 +814,7 @@ def add(id):
             "dformat": "",
         }
     )
-    return redirect(url_for("tagger", token=[token]))
+    return redirect(url_for("tagger", token=[token], folder=folder))
 
 
 @app.route("/remove/<id>")
@@ -711,10 +823,18 @@ def add(id):
 def remove(id):
     token = current_user.token
     index = int(id) - 1
+    folder = session.get('folder')
     del app.config["LABELS"][index]
     for label in app.config["LABELS"][index:]:
         label["id"] = str(int(label["id"]) - 1)
-    return redirect(url_for("tagger", token=[token]))
+    return redirect(url_for("tagger", token=[token], folder=folder))
+
+
+@app.route('/viewimage/<folder>', methods=["GET", "POST"])
+def view_image(folder):
+    folder_path = os.path.join("static", "upload", "images", folder)
+    files = os.listdir(folder_path)
+    return send_file(os.path.join(folder_path, files[0]), mimetype='image')
 
 
 # Route for managing uploads of templates and image/PDF files.
@@ -724,6 +844,10 @@ def remove(id):
 def upload(id):
     files = None
     already_posted_files = "no"
+    try:
+        os.mkdir("./upload_normal")
+    except:
+        pass
     token = current_user.token
     app.config["HEAD"] = 0
     date = request.form.get("date")
@@ -848,7 +972,6 @@ def upload(id):
         flash("Please wait for converting")
         os.mkdir("./static/jsonfile_normal")
         os.mkdir("./static/static/images_normal")
-
     except:
         pass
 
@@ -912,16 +1035,20 @@ def delete(id):
 # Route for updating label information
 @app.route("/label/<id>")
 def label(id):
-    # Get the 'token', 'name', and 'dformat' from the request arguments
-    token = current_user.token
-    name = request.args.get("name")
-    dformat = request.args.get("dformat")
-    print(id, name, dformat)
-    # Update the label information in the app configuration
-    app.config["LABELS"][int(id) - 1]["name"] = name
-    app.config["LABELS"][int(id) - 1]["dformat"] = dformat
+    try:
+        # Get the 'token', 'name', and 'dformat' from the request arguments
+        token = current_user.token
+        folder = session.get('folder')
+        name = request.args.get("name")
+        dformat = request.args.get("dformat")
+        print(id, name, dformat)
+        # Update the label information in the app configuration
+        app.config["LABELS"][int(id) - 1]["name"] = name
+        app.config["LABELS"][int(id) - 1]["dformat"] = dformat
+    except IndexError:
+        return redirect(url_for("template"))
 
-    return redirect(url_for("tagger", token=[token]))
+    return redirect(url_for("tagger", folder=folder, token=[token]))
 
 
 # Route for sending images
@@ -974,6 +1101,163 @@ def download(id):
 
     except NoResultFound:
         return redirect(url_for("dashboard"))
+
+
+@app.route("/requested_users")
+@login_required
+def requested_user():
+    if current_user.type == "Admin" or current_user.type == "Employee":
+        data = db.session.query(req_user).all()
+        row = []
+        for i in data:
+            name = i.Name
+            email = i.email
+            username = i.username
+            type1 = i.type
+            time = i.Date_time
+            row.append((name, email, username, type1, i.ip, i.mac, time, i.id))
+        return render_template('request_list.html', data=row)
+    else:
+        return redirect(url_for("template"))
+
+
+@app.route("/registered_users")
+@login_required
+def registered_user():
+    if current_user.type == "Admin":
+        data = db.session.query(tbl_user).all()
+        row = []
+        for i in data:
+            name = i.Name
+            email = i.email
+            username = i.username
+            type1 = i.type
+            time = i.Date_time
+            row.append((name, email, username, type1, i.ip, i.mac, time, i.id))
+        return render_template('registered.html', data=row)
+    elif current_user.type == "Employee":
+        data = db.session.query(tbl_user).filter_by(type="User").all()
+        row = []
+        for i in data:
+            name = i.Name
+            email = i.email
+            username = i.username
+            type1 = i.type
+            time = i.Date_time
+            row.append((name, email, username, type1, i.ip, i.mac, time, i.id))
+        return render_template('registered.html', data=row)
+    else:
+        return redirect(url_for("template"))
+
+
+@app.route('/move_to_normal/<int:id>', methods=['POST'])
+@login_required
+def move_to_normal(id):
+    req_data = db.session.query(req_user).filter_by(id=id).first()
+    if req_data:
+        msg = f"Congratulation, Your was approved and You can access your site."
+        sub = "Your request has been approved!"
+        mail(req_data.email, msg, sub)
+
+        accepted_data = tbl_user(
+            Name=req_data.Name, email=req_data.email, username=req_data.username, password=req_data.password,
+            type=req_data.type, status=req_data.status, token=req_data.token, mac=req_data.mac, ip=req_data.ip
+        )
+        db.session.add(accepted_data)
+        db.session.delete(req_data)
+        db.session.commit()
+        flash("Request has been Accepted!")
+    return redirect(url_for('requested_user'))
+
+
+@app.route('/reject/<int:id>', methods=['POST'])
+@login_required
+def reject(id):
+    data = db.session.query(req_user).filter_by(id=id).first()
+    msg = f"We regret to inform you that we have rejected your request for the account creation of " \
+          f"{data.username}.For more info contact us."
+    sub = "Your Request has been Rejected!!"
+    mail(data.email, msg, sub)
+    db.session.delete(data)
+    db.session.commit()
+    return redirect(url_for("requested_user"))
+
+
+@app.route('/remove_user/<int:id>', methods=['POST'])
+@login_required
+def remove_user(id):
+    data = db.session.query(tbl_user).filter_by(id=id).first()
+    msg = (f"We regret to inform you that we have removed your account having \n Username : {data.username}"
+           f"\n for Certain reasons.For more info contact us.")
+    sub = "Your account has been Removed!!"
+    mail(data.email, msg, sub)
+    db.session.delete(data)
+    db.session.commit()
+    return redirect(url_for("registered_user"))
+
+
+@app.route('/edit_user/<int:id>', methods=['GET', 'POST'])
+@login_required
+def edit_user(id):
+    if request.method == 'POST':
+        if current_user.type == "User":
+            data = ip_req(username=current_user.username,
+                          email=current_user.email, ip=request.form["ip"], mac=request.form["mac"])
+            db.session.add(data)
+            db.session.commit()
+            flash("Updation request has been submitted!!")
+            return redirect(url_for("dashboard"))
+        else:
+            data = db.session.query(tbl_user).filter_by(id=id).first()
+            data.ip = request.form["ip"]
+            data.mac = request.form["mac"]
+            msg = (f"This is to inform your account having \n Username : {data.username}"
+                   f"\n was updated successfully.For more info contact us.")
+            sub = "Your account has been updated!!"
+            mail(data.email, msg, sub)
+            db.session.commit()
+            flash("Updated successfully!!")
+            return redirect(url_for("registered_user"))
+    return render_template("edit_user.html", id=id)
+
+
+@app.route("/list_ip_mac_request")
+@login_required
+def list_ip():
+    data = db.session.query(ip_req).all()
+    row = []
+    for i in data:
+        row.append((i.username, i.email, i.ip, i.mac, i.Date_time, i.id))
+    return render_template('ip_list.html', data=row)
+
+
+@app.route("/update_ip/<int:id>", methods=["POST", "GET"])
+@login_required
+def update_ip(id):
+    data1 = db.session.query(ip_req).filter_by(id=id).first()
+    data = db.session.query(tbl_user).filter_by(username=data1.username).first()
+    data.ip = data1.ip
+    data.mac = data1.mac
+    sub = "Profile Updated!!"
+    content = "Your profile was updated successfully!!"
+    mail(data.email, content, sub)
+    db.session.delete(data1)
+    db.session.commit()
+    flash("Profile Updated!!")
+    return redirect(url_for("list_ip"))
+
+
+@app.route("/refuse_ip/<int:id>", methods=["POST", "GET"])
+@login_required
+def refuse_ip(id):
+    data = db.session.query(ip_req).filter_by(id=id).first()
+    sub = "Profile Update Request!!"
+    content = "Your profile update request was rejected. Contact us for more."
+    mail(data.email, content, sub)
+    db.session.delete(data)
+    db.session.commit()
+    flash("Request Rejected!!")
+    return redirect(url_for("list_ip"))
 
 
 # Route for applying changes on a folder
