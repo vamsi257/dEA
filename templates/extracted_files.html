@@ -9,7 +9,21 @@
 {% endblock title %}
 {% block body %}
 <br><br><br>
+{% for message in get_flashed_messages() %}
+    <div class="alert alert-warning alert-dismissible fade show" role="alert" onclick="closeAlert(this)">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+{% endfor %}
 
+<script>
+    function closeAlert(alertElement) {
+        alertElement.classList.remove("show");
+        setTimeout(function() {
+            alertElement.style.display = "none";
+        }, 500);
+    }
+</script>
 <h1 align="center">Extracted</h1>
 <br><br>
 <table class="table">
@@ -27,7 +41,7 @@
       <th scope="row">{{ loop.index }}</th>
         <td>{{ d.csvfilename }}</td>
         <td>{{ d.date_time }}</td>
-        <td><a href="{{ url_for('download', id=d.id) }}" target="_blank">View</a></td>
+        <td><a href="{{ url_for('download', id=d.id) }}">View</a></td>
     </tr>
   {% endfor %}
   </tbody>
@@ -35,3 +49,4 @@
 <br><br><br><br>
 {% endblock body %}
 {% set sticky = True %}
+{% set showheader = True %}

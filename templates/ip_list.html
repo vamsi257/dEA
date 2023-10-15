@@ -1,0 +1,82 @@
+{% extends 'headfoot.html' %}
+{% block title %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+<title>DataExtractor | Requests</title>
+{% endblock title %}
+{% block body %}
+
+
+<br><br><br>
+{% for message in get_flashed_messages() %}
+    <div class="alert alert-warning alert-dismissible fade show" role="alert" onclick="closeAlert(this)">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+{% endfor %}
+
+<script>
+    function closeAlert(alertElement) {
+        alertElement.classList.remove("show");
+        setTimeout(function() {
+            alertElement.style.display = "none";
+        }, 500);
+    }
+</script>
+<h1 align="center">IP or MAC Change Requests</h1>
+<br><br>
+<table class="table">
+  <thead>
+    <tr>
+      <th scope="col">Slno</th>
+      <th scope="col">Username</th>
+        <th scope="col">Email</th>
+		<th scope="col">IP</th>
+		<th scope="col">Mac</th>
+        <th scope="col">Date_Time</th>
+		<th scope="col">Accept</th>
+        <th scope="col">Mail</th>
+        <th scope="col">Reject</th>
+
+    </tr>
+  </thead>
+  <tbody>
+  {% for row in data %}
+    <tr>
+      <th scope="row">{{ loop.index }}</th>
+      <td>{{ row[0] }}</td>
+        <td>{{ row[1] }}</td>
+		<td>{{ row[2] }}</td>
+		<td>{{ row[3] }}</td>
+        <td>{{ row[4] }}</td>
+		<td>
+            <form action="{{ url_for('update_ip', id=row[-1]) }}" method="post">
+                <input type="submit" class="btn btn-success btn-sm mt-3"
+                       onclick="return confirm('Please confirm that you want to Accept {{ row[0] }}?')"
+                       value="Update">
+            </form>
+        </td>
+            <td>
+            <form action="mailto:{{ row[1] }}" method="post">
+                <input type="submit" class="btn btn-warning btn-sm mt-3"
+                       onclick="return confirm('Please confirm that you want to mail to {{ row[1] }}?')"
+                       value="Mail">
+            </form>
+            </td>
+        <td>
+            <form action="{{ url_for('refuse_ip', id=row[-1]) }}" method="post">
+              <input type="submit"  class="btn btn-danger btn-sm mt-3"
+                     onclick="return confirm('Please confirm that you want to Reject the request of {{ row[0] }}?')"
+                     value="Reject">
+            </form>
+
+          </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+  {% endblock body %}
+{% if Data %}
+    {% set sticky = True %}
+{% endif %}
+{% set showheader = true %}

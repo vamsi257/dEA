@@ -53,7 +53,21 @@ a:hover {
 {% endblock title %}
 {% block body %}
 <br><br><br>
+{% for message in get_flashed_messages() %}
+    <div class="alert alert-warning alert-dismissible fade show" role="alert" onclick="closeAlert(this)">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+{% endfor %}
 
+<script>
+    function closeAlert(alertElement) {
+        alertElement.classList.remove("show");
+        setTimeout(function() {
+            alertElement.style.display = "none";
+        }, 500);
+    }
+</script>
   <div id="thankyou">
     <h2 id="h2thankyou">Thank You for Uploading!</h2>
     <br/><br/>
@@ -61,3 +75,4 @@ a:hover {
 
   </div>
 {% endblock body %}
+ {% set showheader = true %}

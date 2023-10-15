@@ -42,7 +42,22 @@
  {% endblock title %}
  {% block body %}
      <br>
+{% for message in get_flashed_messages() %}
+    <br><br>
+    <div class="alert alert-warning alert-dismissible fade show" role="alert" onclick="closeAlert(this)">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+{% endfor %}
 
+<script>
+    function closeAlert(alertElement) {
+        alertElement.classList.remove("show");
+        setTimeout(function() {
+            alertElement.style.display = "none";
+        }, 500);
+    }
+</script>
 
   <div class="alert alert-success container my-3" role="alert" id="hide">
     Folder in process...
@@ -146,4 +161,4 @@
 
 
     {% endblock body %}
- 
+ {% set showheader = true %}

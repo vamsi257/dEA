@@ -7,6 +7,22 @@
 
 {% block body %}
 
+    {% for message in get_flashed_messages() %}
+    <div class="alert alert-warning alert-dismissible fade show" role="alert" onclick="closeAlert(this)">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+{% endfor %}
+
+<script>
+    function closeAlert(alertElement) {
+        alertElement.classList.remove("show");
+        setTimeout(function() {
+            alertElement.style.display = "none";
+        }, 500);
+    }
+</script>
+
 
     <div class="content">
       <div class="text">Login Form</div>
@@ -25,7 +41,7 @@
         <br>
         <button>Sign in</button>
         <div class="signup">Not a member?
-          <a href="/register">signup now</a>
+          <a href="{{ url_for("signup") }}">signup now</a>
         </div>
       </form>
   </div>

@@ -19,6 +19,21 @@
 {% endblock title %}
 {% block body %}
     <br><br><br>
+    {% for message in get_flashed_messages() %}
+    <div class="alert alert-warning alert-dismissible fade show" role="alert" onclick="closeAlert(this)">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+{% endfor %}
+
+<script>
+    function closeAlert(alertElement) {
+        alertElement.classList.remove("show");
+        setTimeout(function() {
+            alertElement.style.display = "none";
+        }, 500);
+    }
+</script>
 <style>
   .sidebar {
     width: 25%;
@@ -227,7 +242,8 @@ var pageScript = document.createElement("script");
 
     //load and display image
     var image = new Image();
-    image.src = "{{ url_for('serve_image', filename=image) }}";
+    var imageURL = "{{ url_for('serve_image', folder=folder, filename=image) }}";
+    image.src = imageURL;
     document.body.appendChild(image);
     image.onload = function (e) {
       ctx.canvas.width = image.width;
@@ -347,3 +363,4 @@ var pageScript = document.createElement("script");
   <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
 </div>
 {% endblock body %}
+ {% set showheader = true %}
