@@ -167,6 +167,7 @@ def MainImg(user_id, image_folder, option, data):
                         extracted_data[column_title] = extracted_text.strip()
 
                 # Append extracted data for this image to the list of all_extracted_data
+                print(extracted_data)
                 all_extracted_data.append(extracted_data)
 
         # Save all extracted data as CSV
@@ -187,6 +188,7 @@ def MainImg(user_id, image_folder, option, data):
         db.session.add(extract)
         db.session.commit()
         print(f"Extracted data Successfully!!")
+        return extract.id
 
 
 def schedule_extraction(user_id, image_folder, option, data, scheduled_time):
@@ -335,7 +337,8 @@ def signup():
             # Get user details from the registration form.
             username = form.username.data
             user = tbl_user.query.filter_by(username=username).first()
-            if user:
+            user1 = req_user.query.filter_by(username=username).first()
+            if user or user1:
                 # If user already exists, show a flash message.
                 flash("You already having the account on this username!")
                 return redirect(url_for("login"))
@@ -485,7 +488,11 @@ def login():
                 db.session.commit()
                 return redirect(url_for("template"))
         else:
-            flash("please enter correct details")
+            user1 = req_user.query.filter_by(username=form.username.data).first()
+            if user1:
+                flash("Your request not yet accepted!!")
+            else:
+                flash("Please enter correct details!!")
     return render_template("Login.html", form=form)
 
 
@@ -546,17 +553,26 @@ def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in app.config["ALLOWED_EXTENSIONS"]
 
 
-@app.route('/temp_success', methods=['GET', 'POST'])
+@app.route('/temp_success/<id1>/<folder1>', methods=['GET', 'POST'])
 @login_required
-def temp_success():
-    return render_template("temp.html")
+def temp_success(id1, folder1):
+    return render_template("temp.html", id1=id1, folder1=folder1)
+
+
+# This is for extarction purpose after craetion of template
+@app.route("/Extract/<id1>/<folder1>", methods=["GET", "POST"])
+@login_required
+def Extract(id1, folder1):
+    cor_data = Cordinate_Data.query.filter_by(cord_id=id1).first()
+    file_folder = os.path.join("static", "upload", "images", folder1)
+    file_id = MainImg(current_user.id, file_folder, "1", cor_data)
+    return redirect(url_for("download", id=file_id))
 
 
 # Route for managing uploads of templates and image/PDF files.
 @app.route("/template", methods=["GET", "POST"])
 @login_required
 def template():
-    current_year = datetime.datetime.now().year
     token = current_user.token
     app.config["IMAGES"] = "./static/upload/images"
     app.config["LABELS"] = []
@@ -599,29 +615,47 @@ def template():
             for file in files:
                 if file and allowed_file(file.filename):
                     filename = secure_filename(file.filename)
-                    file_path = os.path.join(app.config["UPLOAD_FOLDER"], "images", folder, filename)
-                    file.save(file_path)  # Save the file to the desired path
-                    app.config["uploaded_files"].append(folder + '/' + filename)
+                    extention = os.path.splitext(file.filename)[1].lower()
+
+                    # Generate a unique filename for the PNG conversion
+                    png_filename = str(uuid.uuid4()) + ".png"
+                    folder_path = os.path.join(app.config["UPLOAD_FOLDER"], "images", folder)
+                    if extention in ['.jpg', '.jpeg', '.gif', '.png', '.tif', '.tiff']:
+                        # Convert image files to PNG using PIL
+                        with Image.open(file) as img:
+                            # Convert the image to RGB mode if it's not already
+                            if img.mode != "RGB":
+                                img = img.convert("RGB")
+
+                            # Convert and save the image to PNG format
+                            png_path = os.path.join(folder_path, secure_filename(png_filename))
+                            img.save(png_path, format="PNG")
+                        app.config["uploaded_files"].append(folder + '/' + png_filename)
                     if "pdf" not in os.path.splitext(filename)[1].lower():
                         app.config["TEMP_NAME"].insert(1, "Image")
                     else:
                         # Convert PDF files to PNG using pdf2image
-                        pdf_path = os.path.join(app.config["UPLOAD_FOLDER"], "upload", secure_filename(file.filename))
-                        file.save(pdf_path)
-                        try:
-                            # Convert each PDF page to a PNG image
-                            first_page_images = convert_from_path(pdf_path, first_page=0, last_page=0)
-
-                            if first_page_images:
-                                png_path = os.path.join(app.config["TEMP_NAME"], f"page_1.png")
-                                first_page_images[0].save(png_path, format="PNG")  # Then save the file
-                            os.remove(pdf_path)
-                        except Exception as e:
-                            print("PDF to PNG conversion error:", e)
+                        if extention == ".pdf":
+                            # Convert PDF files to PNG using pdf2image
+                            pdf_path = os.path.join(folder_path, secure_filename(file.filename))
+                            file.save(pdf_path)
+                            try:
+                                # Convert each PDF page to a PNG image
+                                pdf_images = convert_from_path(pdf_path, dpi=300)
+                                for page_num, pdf_image in enumerate(pdf_images):
+                                    if page_num >= 1:
+                                        break  # Limit to 100 pages
+                                    png_path = os.path.join(folder_path, f"page_{page_num + 1}.png")
+                                    pdf_image.save(png_path, format="PNG")  # Then save the file
+                                pdf_path = os.path.join(app.config["UPLOAD_FOLDER"], "upload",
+                                                        secure_filename(file.filename))
+                                file.save(pdf_path)
+                            except Exception as e:
+                                print("PDF to PNG conversion error:", e)
             app.config["uploaded_files"].sort()
 
-        for (dirpath, dirnames, filenames) in os.walk(os.path.join(app.config["UPLOAD_FOLDER"], "images", folder)):
-            files = filenames
+        for (dirpath, dirnames, png_filename) in os.walk(os.path.join(app.config["UPLOAD_FOLDER"], "images", folder)):
+            files = png_filename
             break
         print("filenames:", files)
         app.config["FILES"] = files
@@ -634,7 +668,6 @@ def template():
         return render_template(
             "template.html",
             token=token,
-            current_year=current_year,
             current_user=current_user,
             Data=Data,
             status=int(d.status),
@@ -703,7 +736,7 @@ def tagger(folder):
             db.session.commit()
             with open(app.config["OUT"], "r+") as f:
                 f.truncate(0)
-            return redirect(url_for("temp_success"))
+            return redirect(url_for("Extract", id1=adddata.cord_id, folder1=folder))
 
         if type(app.config["uploaded_files"][app.config["HEAD"]]) == str:
             image = app.config["FILES"][app.config["HEAD"]]
@@ -961,10 +994,9 @@ def upload(id):
                             break  # Limit to 100 pages
                         png_path = os.path.join(folder_path, f"page_{page_num + 1}.png")
                         pdf_image.save(png_path, format="PNG")  # Then save the file
+            id1 = MainImg(current_user.id, folder_path, option, cor_data)
 
-            MainImg(current_user.id, folder_path, option, cor_data)
-
-        return redirect(url_for("download_list", token=[token]))
+        return redirect(url_for("download", id=id1, token=[token]))
 
     try:
         shutil.rmtree("./static/jsonfile_normal")
@@ -1014,6 +1046,23 @@ def FormatChange():
 
     print("yes")
     return redirect(url_for("setting", token=[token]))
+
+
+@app.route("/delete_extract/<int:id>")
+@token_required
+@login_required
+def delete_extract(id):
+    # Get the 'token' from the request arguments
+    token = current_user.token
+    try:
+        # Delete data from the Extracted_Data table for the specified user
+        d = ExtractedFiles.query.filter_by(id=id).first()
+        db.session.delete(d)
+        db.session.commit()
+    except:
+        pass
+    flash("File Deleted!!")
+    return redirect(url_for("download_list", token=[token]))
 
 
 # Route for deleting data
@@ -1096,11 +1145,63 @@ def download(id):
             tables=df.to_dict("records"),  # Convert DataFrame to a list of dictionaries
             columns=df.columns.tolist(),  # Convert DataFrame columns to a list
             data_json=json_data,
+            id1=id,
             token=token
         )
 
     except NoResultFound:
         return redirect(url_for("dashboard"))
+
+
+@app.route('/upload_csv/<id1>', methods=['GET', 'POST'])
+def upload_csv(id1):
+    # Fetch user data from the database
+    d = ExtractedFiles.query.filter_by(id=id1).first()
+
+    # Decode the filename from bytes to strings
+    csv_filename = d.csvfilename.decode('utf-8')
+
+    # Construct file path
+    csv_path = os.path.join("./static/csvfile", csv_filename)
+
+    # Load CSV data using pandas
+    df = pd.read_csv(csv_path)
+    return render_template('edit_csv.html', df=df, id1=id1)
+
+
+@app.route('/save_changes/<id1>', methods=["GET", 'POST'])
+def save_changes(id1):
+    # Fetch user data from the database
+    d = ExtractedFiles.query.filter_by(id=id1).first()
+
+    # Decode the filename from bytes to strings
+    csv_filename = d.csvfilename.decode('utf-8')
+
+    # Construct file path
+    csv_path = os.path.join("./static/csvfile", csv_filename)
+
+    # Load CSV data using pandas
+    df = pd.read_csv(csv_path)
+
+    # Retrieve the edited data from the form
+    edited_data = {}
+    for key, value in request.form.items():
+        col, index = key.split('_')
+        index = int(index)
+        if index not in edited_data:
+            edited_data[index] = {}
+        edited_data[index][col] = value
+
+    # Update the DataFrame with the edited data
+    for index, data in edited_data.items():
+        for col, value in data.items():
+            df.at[index, col] = value
+
+    # Save the DataFrame back to the CSV file
+    df.to_csv(csv_path, index=False)
+
+    flash("Changes saved successfully!")
+    return redirect(url_for("download", id=id1))
 
 
 @app.route("/requested_users")
@@ -1300,7 +1401,7 @@ if __name__ == "__main__":
     with app.app_context():
         db.create_all()
     # Your Flask app run code
-    app.run()
+    app.run(debug=True)
     # Create and start the image processing thread
     thread = threading.Thread(target=MainImg, args=(user_id, image_folder, option, data))
     thread.start()
