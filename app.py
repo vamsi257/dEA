@@ -1401,7 +1401,7 @@ if __name__ == "__main__":
     with app.app_context():
         db.create_all()
     # Your Flask app run code
-    app.run(debug=True)
+    app.run()
     # Create and start the image processing thread
     thread = threading.Thread(target=MainImg, args=(user_id, image_folder, option, data))
     thread.start()
