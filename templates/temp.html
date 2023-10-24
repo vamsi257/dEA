@@ -28,7 +28,11 @@
     <h1 align="center">Template uploaded</h1>
     <br/><br/>
       <div align="center"><a class="nav-link active" aria-current="page"  href="{{ url_for('template') }}">
-          🏠 Click Here To Go To Home</a></div>
+          🏠 Click Here To Go To Home</a></div><br>
+    <br><br>
+    <div align="center">
+        <a methods="POST" href="{{ url_for("Extract", id1=id1, folder1=folder1) }}">Convert this template</a>
+    </div>
 
 {% endblock body %}
  {% set showheader = true %}

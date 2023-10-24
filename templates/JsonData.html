@@ -62,6 +62,10 @@
         <br>
         <button id="dload" class="btn btn-primary" onclick="Jsonexport()">Download Json</button>
         <button class="btn btn-primary" id="btnExportToCsv">Download CSV/Excel</button>
+    <a href="{{ url_for('upload_csv', id1=id1) }}" methods="POST" class="btn btn-warning"
+           onclick="return confirm('Do you want to edit the file?')">Edit</a>
+        <a href="{{ url_for('delete_extract', id=id1) }}" class="btn btn-danger"
+           onclick="return confirm('Do you want to delete the file?')">Delete</a>
     </div>
 
     <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasRight" aria-labelledby="offcanvasRightLabel">

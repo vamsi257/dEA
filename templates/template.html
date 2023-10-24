@@ -259,6 +259,8 @@ document.querySelector('.popup-imag span').onclick =()=>{
                 </div>
             </div>
               <div class="col-lg-4 col-md-6 mb-4">
+
+              {% if current_user.type == "Employee" %}
                 {% if session.theme == 'light' %}
          <div class="card bg-light" style="height: auto;">
      {% else %}
@@ -273,7 +275,9 @@ document.querySelector('.popup-imag span').onclick =()=>{
                   </div>
                 </div>
             </div>
+                  {% endif %}
           </div>
+
           <div class="row">
               {% if current_user.type == "Admin" %}
               <div class="col-lg-4 col-md-6 mb-4">

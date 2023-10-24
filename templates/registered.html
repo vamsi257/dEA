@@ -35,7 +35,9 @@
 		<th scope="col">IP</th>
 		<th scope="col">Mac</th>
         <th scope="col">Date_Time</th>
+        {% if current_user.type == "Employee"%}
         <th scope="col">Edit</th>
+        {% endif %}
         <th scope="col">Mail</th>
         <th scope="col">Remove</th>
 
@@ -52,15 +54,15 @@
 		<td>{{ row[4] }}</td>
 		<td>{{ row[5] }}</td>
 		<td>{{ row[6] }}</td>
+    {% if row[3] == "User" and current_user.type == "Employee"%}
     <td>
-        {% if row[3] == "User" %}
             <form action="{{ url_for("edit_user", id=row[-1]) }}">
                 <input type="submit" class="btn btn-primary btn-sm mt-3"
                        onclick="return confirm('Please confirm that you want to edit?')"
                        value="Edit">
             </form>
-        {% endif %}
             </td>
+    {% endif %}
             <td>
             <form action="mailto:{{ row[1] }}" method="post">
                 <input type="submit" class="btn btn-warning btn-sm mt-3"

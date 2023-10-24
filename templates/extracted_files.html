@@ -32,7 +32,8 @@
       <th scope="col">Slno</th>
         <th scope="col">CSV Filename</th>
         <th scope="col">Date_time</th>
-		<th scope="col">#</th>
+		<th scope="col">View</th>
+        <th scope="col">Delete</th>
     </tr>
   </thead>
   <tbody>
@@ -41,7 +42,11 @@
       <th scope="row">{{ loop.index }}</th>
         <td>{{ d.csvfilename }}</td>
         <td>{{ d.date_time }}</td>
-        <td><a href="{{ url_for('download', id=d.id) }}">View</a></td>
+        <td><b class="btn btn-primary"><a href="{{ url_for("download", id=d.id) }}"
+              class="nav-link">view</a></b></td>
+        <td><b class="btn btn-danger" onclick="return confirm('Do you want to delete the file?')">
+            <a href="{{ url_for("delete_extract", id=d.id) }}"
+              class="nav-link">Delete</a></b></td>
     </tr>
   {% endfor %}
   </tbody>

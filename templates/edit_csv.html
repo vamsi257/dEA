@@ -1,0 +1,63 @@
+{% extends 'headfoot.html' %}
+{% block title %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/jsondata.css') }}">
+<script src="{{ url_for('static', filename='js/jsondata.js') }}"></script>
+<title>DataExtractor | Edit</title>
+{% endblock title %}
+{% block body %}
+    <br><br><br>
+{% for message in get_flashed_messages() %}
+    <div class="alert alert-warning alert-dismissible fade show" role="alert" onclick="closeAlert(this)">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+{% endfor %}
+
+<script>
+    function closeAlert(alertElement) {
+        alertElement.classList.remove("show");
+        setTimeout(function() {
+            alertElement.style.display = "none";
+        }, 500);
+    }
+</script>
+
+    <div class="container">
+        <br>
+        <br>
+        <div class="container table-view">
+            <h5 class="container"><b>Table View</b></h5>
+
+              <form action="{{ url_for('save_changes', id1=id1) }}" method="post">
+                <table style="border-spacing: 20px">
+                  <thead>
+                    <tr>
+                      {% for column in df.columns %}
+                        <th>{{ column }}</th>
+                      {% endfor %}
+                    </tr>
+                  </thead>
+                <tbody>
+                {% for index, row in df.iterrows() %}
+                  <tr>
+                    <!-- Loop through the columns -->
+                    {% for col in df.columns %}
+                      <td>
+                        <!-- Create an input field for each cell -->
+                        <input type="text" name="{{ col }}_{{ index }}" value="{{ row[col] }}">
+                      </td>
+                    {% endfor %}
+                  </tr>
+                {% endfor %}
+                </tbody>
+              </table>
+              <br><br>
+              <input class="btn btn-primary" type="submit" value="Save Changes">
+            </form>
+
+        <br>
+
+    <br><br>
+{% endblock body %}
+{% set sticky = True %}
+ {% set showheader = true %}
