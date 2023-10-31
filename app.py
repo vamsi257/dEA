@@ -29,6 +29,7 @@ import threading
 import os
 from google.cloud import vision
 import smtplib
+import hashlib
 
 # from flask_migrate import Migrate
 
@@ -184,7 +185,8 @@ def MainImg(user_id, image_folder, option, data):
                 print(all_extracted_data)
 
         encoded_csv_filename = os.path.basename(csv_file_path).encode('utf-8')
-        extract = ExtractedFiles(user_id=user_id, csvfilename=encoded_csv_filename)
+        extract = ExtractedFiles(user_id=user_id, csvfilename=encoded_csv_filename,
+                                 date_time=datetime.datetime.now(timezone('Asia/Kolkata')))
         db.session.add(extract)
         db.session.commit()
         print(f"Extracted data Successfully!!")
@@ -203,6 +205,11 @@ def schedule_extraction(user_id, image_folder, option, data, scheduled_time):
     timer.start()
     print(f'Scheduled{timer}')
     scheduled_tasks[image_folder] = timer
+
+
+def encrypt(password):
+    sha512_hash = hashlib.sha3_512(password.encode()).hexdigest()
+    return sha512_hash
 
 
 class tbl_user(db.Model, UserMixin):  # User table
@@ -317,7 +324,7 @@ class UploadFileForm(FlaskForm):
 
 
 # Dashboard route accessible after login, showing user information.
-@app.route('/dashboard')
+@app.route(f'/{encrypt("dashboard")}')
 @login_required
 def dashboard():
     name = current_user.Name
@@ -329,7 +336,7 @@ def dashboard():
 
 
 # registration
-@app.route("/register", methods=["GET", "POST"])
+@app.route(f'/{encrypt("register")}', methods=["GET", "POST"])
 def signup():
     form = RegisterForm()
     if (current_user.is_authenticated and current_user.type == "Admin") or not current_user.is_authenticated:
@@ -438,66 +445,78 @@ def signup():
 # login
 @app.route("/", methods=["GET", "POST"])
 def login():
-    if current_user:
-        logout_user()
-    form = LoginForm()
-    if form.validate_on_submit():
-        # Get user details from the login form.
-        user = tbl_user.query.filter_by(username=form.username.data).first()
-        hostname = socket.gethostname()
-        IPadd = socket.gethostbyname(hostname)
-        if user:
-            if user.ip == "None":
-                # Update user's IP address in the database.
-                user.ip = str(IPadd)
-                db.session.add(user)
-                db.session.commit()
-                return redirect(url_for('login'))
-            elif user.ip != str(IPadd):
-                flash("Your Ip was not registered!!")
-                return redirect(url_for('login'))
-            elif bcrypt.check_password_hash(user.password, form.password.data) and (user.type == "Admin" or
-                                                                                    user.type == "Employee"):
-                login_user(user)
-                token = jwt.encode(
-                    {
-                        "user": form.username.data,
-                        "exp": datetime.datetime.utcnow() + timedelta(minutes=60),
-                    },
-                    app.config["SECRET_KEY"],
-                )
-                user.token = token
-                user.ip = str(IPadd)
-                user.mac = get_mac_address()
-                db.session.add(user)
-                db.session.commit()
-                return redirect(url_for("template"))
-            elif bcrypt.check_password_hash(user.password, form.password.data) and (user.ip == str(IPadd) or
-                                                                                    user.mac == get_mac_address()):
-                # If the password is correct and IP address matches, log the user in.
-                login_user(user)
-                token = jwt.encode(
-                    {
-                        "user": form.username.data,
-                        "exp": datetime.datetime.utcnow() + timedelta(minutes=60),
-                    },
-                    app.config["SECRET_KEY"],
-                )
-                user.token = token
-                db.session.add(user)
-                db.session.commit()
-                return redirect(url_for("template"))
-        else:
-            user1 = req_user.query.filter_by(username=form.username.data).first()
-            if user1:
-                flash("Your request not yet accepted!!")
+    if not current_user.is_authenticated:
+        form = LoginForm()
+        if form.validate_on_submit():
+            # Get user details from the login form.
+            user = tbl_user.query.filter_by(username=form.username.data).first()
+            hostname = socket.gethostname()
+            IPadd = socket.gethostbyname(hostname)
+            if user:
+                if user.ip == "None":
+                    # Update user's IP address in the database.
+                    user.ip = str(IPadd)
+                    db.session.add(user)
+                    db.session.commit()
+                    return redirect(url_for('login'))
+                elif user.ip != str(IPadd):
+                    flash("Your Ip was not registered!!")
+                    return redirect(url_for('login'))
+                elif bcrypt.check_password_hash(user.password, form.password.data) and (user.type == "Admin" or
+                                                                                        user.type == "Employee"):
+                    login_user(user)
+                    token = jwt.encode(
+                        {
+                            "user": form.username.data,
+                            "exp": datetime.datetime.utcnow() + timedelta(minutes=60),
+                        },
+                        app.config["SECRET_KEY"],
+                    )
+                    user.token = token
+                    user.ip = str(IPadd)
+                    user.mac = get_mac_address()
+                    db.session.add(user)
+                    db.session.commit()
+                    return redirect(url_for("template"))
+                elif bcrypt.check_password_hash(user.password, form.password.data) and (user.ip == str(IPadd) or
+                                                                                        user.mac == get_mac_address()):
+                    # If the password is correct and IP address matches, log the user in.
+                    login_user(user)
+                    token = jwt.encode(
+                        {
+                            "user": form.username.data,
+                            "exp": datetime.datetime.utcnow() + timedelta(minutes=60),
+                        },
+                        app.config["SECRET_KEY"],
+                    )
+                    user.token = token
+                    db.session.add(user)
+                    db.session.commit()
+                    return redirect(url_for("template"))
             else:
-                flash("Please enter correct details!!")
-    return render_template("Login.html", form=form)
+                user1 = req_user.query.filter_by(username=form.username.data).first()
+                if user1:
+                    flash("Your request not yet accepted!!")
+                else:
+                    flash("Please enter correct details!!")
+        return render_template("Login.html", form=form)
+    else:
+        user = current_user
+        token = jwt.encode(
+            {
+                "user": user.username,
+                "exp": datetime.datetime.utcnow() + timedelta(minutes=60),
+            },
+            app.config["SECRET_KEY"],
+        )
+        user.token = token
+        db.session.add(user)
+        db.session.commit()
+        return redirect(url_for("template"))
 
 
 # Route to save data received via AJAX to JSON and CSV files.
-@app.route('/save-data', methods=['POST'])
+@app.route(f'/{encrypt("save-data")}', methods=['POST'])
 def save_data():
     data = request.get_json()  # Receive the data from the AJAX request
     save_as_json(data)
@@ -537,7 +556,7 @@ def token_required(f):
 
 
 # Route to log out the user.
-@app.route('/logout', methods=['GET', 'POST'])
+@app.route(f'/logout', methods=['GET', 'POST'])
 @login_required
 def logout():
     user = tbl_user.query.filter_by(id=current_user.id).first()
@@ -553,14 +572,14 @@ def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in app.config["ALLOWED_EXTENSIONS"]
 
 
-@app.route('/temp_success/<id1>/<folder1>', methods=['GET', 'POST'])
+@app.route(f'/{encrypt("temp_success")}/<id1>/<folder1>', methods=['GET', 'POST'])
 @login_required
 def temp_success(id1, folder1):
     return render_template("temp.html", id1=id1, folder1=folder1)
 
 
 # This is for extarction purpose after craetion of template
-@app.route("/Extract/<id1>/<folder1>", methods=["GET", "POST"])
+@app.route(f'/{encrypt("Extract")}/<id1>/<folder1>', methods=["GET", "POST"])
 @login_required
 def Extract(id1, folder1):
     cor_data = Cordinate_Data.query.filter_by(cord_id=id1).first()
@@ -570,7 +589,7 @@ def Extract(id1, folder1):
 
 
 # Route for managing uploads of templates and image/PDF files.
-@app.route("/template", methods=["GET", "POST"])
+@app.route(f'/{encrypt("template")}', methods=["GET", "POST"])
 @login_required
 def template():
     token = current_user.token
@@ -676,88 +695,92 @@ def template():
         )
 
 
-@app.route("/image/<folder>/<filename>")
+@app.route(f'/{encrypt("image")}/<folder>/<filename>')
 def serve_image(folder, filename):
     images_folder = os.path.join("static", "upload", "images", folder)
     return send_from_directory(images_folder, filename)
 
 
 # Route for tagging images and PDFs with coordinates.
-@app.route("/tagger/<folder>", methods=["GET", "POST"])
+@app.route(f'/{encrypt("tagger")}/<folder>', methods=["GET", "POST"])
 @token_required
 @login_required
 def tagger(folder):
-    try:
-        token = current_user.token
-        done = request.args.get("done")
-        image = request.args.get("image")
-        if done == "Yes":
-            with open(app.config["OUT"], "a") as f:
-                for label in app.config["LABELS"]:
-                    f.write(label["id"]
-                            + ","
-                            + label["name"]
-                            + ","
-                            + str(round(float(label["xMin"])))
-                            + ","
-                            + str(round(float(label["xMax"])))
-                            + ","
-                            + str(round(float(label["yMin"])))
-                            + ","
-                            + str(round(float(label["yMax"])))
-                            + ","
-                            + str(label["dformat"])
-                            + "\n"
-                            )
-                    # coTox(image,label["id"],label["name"],round(float(label["xMin"])),round(float(label["yMin"])),round(float(label["xMax"])),round(float(label["yMax"])))
-            with open(app.config["OUT"], "r") as s:
-                data = s.read()
-            x = datetime.datetime.now(timezone("Asia/Kolkata"))
-            cordinates = data
-            templateName = app.config["TEMP_NAME"][0]
-            Template_format = app.config["TEMP_NAME"][1]
-            print(Template_format)
-            current_time = x.strftime("%I:%M:%S %p")
-            Date = f"{x.day}/{x.month}/{x.year}"
-            Day = x.strftime("%A")
-            adddata = Cordinate_Data(
-                cordinates=cordinates,
-                user_id=current_user.id,
-                Tem_name=templateName,
-                Date=Date,
-                Time=current_time,
-                Day=Day,
-                tempimage=app.config["TEMP_Imagecode"],
-                folder=session.get('folder'),
-                file=image,
-                Tem_format=Template_format,
+    if current_user.type == "User":
+        try:
+            token = current_user.token
+            done = request.args.get("done")
+            image = request.args.get("image")
+            if done == "Yes":
+                with open(app.config["OUT"], "a") as f:
+                    for label in app.config["LABELS"]:
+                        f.write(label["id"]
+                                + ","
+                                + label["name"]
+                                + ","
+                                + str(round(float(label["xMin"])))
+                                + ","
+                                + str(round(float(label["xMax"])))
+                                + ","
+                                + str(round(float(label["yMin"])))
+                                + ","
+                                + str(round(float(label["yMax"])))
+                                + ","
+                                + str(label["dformat"])
+                                + "\n"
+                                )
+                        # coTox(image,label["id"],label["name"],round(float(label["xMin"])),round(float(label["yMin"])),round(float(label["xMax"])),round(float(label["yMax"])))
+                with open(app.config["OUT"], "r") as s:
+                    data = s.read()
+                x = datetime.datetime.now(timezone("Asia/Kolkata"))
+                cordinates = data
+                templateName = app.config["TEMP_NAME"][0]
+                Template_format = app.config["TEMP_NAME"][1]
+                print(Template_format)
+                current_time = x.strftime("%I:%M:%S %p")
+                Date = f"{x.day}/{x.month}/{x.year}"
+                Day = x.strftime("%A")
+                adddata = Cordinate_Data(
+                    cordinates=cordinates,
+                    user_id=current_user.id,
+                    Tem_name=templateName,
+                    Date=Date,
+                    Time=current_time,
+                    Day=Day,
+                    tempimage=app.config["TEMP_Imagecode"],
+                    folder=session.get('folder'),
+                    file=image,
+                    Tem_format=Template_format,
+                )
+                db.session.add(adddata)
+                db.session.commit()
+                with open(app.config["OUT"], "r+") as f:
+                    f.truncate(0)
+                return redirect(url_for("Extract", id1=adddata.cord_id, folder1=folder))
+
+            if type(app.config["uploaded_files"][app.config["HEAD"]]) == str:
+                image = app.config["FILES"][app.config["HEAD"]]
+            else:
+                image = str(app.config["uploaded_files"][app.config["HEAD"]])
+            labels = app.config["LABELS"]
+            not_end = not (app.config["HEAD"] == len(app.config["FILES"]) - 1)
+            d = tbl_user.query.filter_by(id=current_user.id).first()
+
+            return render_template(
+                "tagger.html",
+                folder=folder,
+                not_end=not_end,
+                image=image,
+                labels=labels,
+                head=app.config["HEAD"] + 1,
+                len=len(app.config["FILES"]),
+                token=token,
+                status=int(d.status),
             )
-            db.session.add(adddata)
-            db.session.commit()
-            with open(app.config["OUT"], "r+") as f:
-                f.truncate(0)
-            return redirect(url_for("Extract", id1=adddata.cord_id, folder1=folder))
-
-        if type(app.config["uploaded_files"][app.config["HEAD"]]) == str:
-            image = app.config["FILES"][app.config["HEAD"]]
-        else:
-            image = str(app.config["uploaded_files"][app.config["HEAD"]])
-        labels = app.config["LABELS"]
-        not_end = not (app.config["HEAD"] == len(app.config["FILES"]) - 1)
-        d = tbl_user.query.filter_by(id=current_user.id).first()
-
-        return render_template(
-            "tagger.html",
-            folder=folder,
-            not_end=not_end,
-            image=image,
-            labels=labels,
-            head=app.config["HEAD"] + 1,
-            len=len(app.config["FILES"]),
-            token=token,
-            status=int(d.status),
-        )
-    except IndexError:
+        except IndexError:
+            return redirect(url_for("template"))
+    else:
+        flash("Only User can access page!!")
         return redirect(url_for("template"))
 
 
@@ -765,250 +788,273 @@ def tagger(folder):
 @token_required
 @login_required
 def next():
-    token = current_user.token
-    done = request.args.get("done")
-    folder = session.get('folder')
-    app.config["HEAD"] = app.config["HEAD"] + 1
-    with open(app.config["OUT"], "a") as f:
-        for label in app.config["LABELS"]:
-            f.write(label["id"]
-                    + ","
-                    + label["name"]
-                    + ","
-                    + str(round(float(label["xMin"])))
-                    + ","
-                    + str(round(float(label["xMax"])))
-                    + ","
-                    + str(round(float(label["yMin"])))
-                    + ","
-                    + str(round(float(label["yMax"])))
-                    + ","
-                    + str(label["dformat"])
-                    + "\n"
-                    )
-            # coTox(image,label["id"],label["name"],round(float(label["xMin"])),round(float(label["yMin"])),round(float(label["xMax"])),round(float(label["yMax"])))
-    app.config["LABELS"] = []
-    return redirect(url_for("tagger", token=[token], done=[done], folder=folder))
+    try:
+        token = current_user.token
+        done = request.args.get("done")
+        folder = session.get('folder')
+        app.config["HEAD"] = app.config["HEAD"] + 1
+        with open(app.config["OUT"], "a") as f:
+            for label in app.config["LABELS"]:
+                f.write(label["id"]
+                        + ","
+                        + label["name"]
+                        + ","
+                        + str(round(float(label["xMin"])))
+                        + ","
+                        + str(round(float(label["xMax"])))
+                        + ","
+                        + str(round(float(label["yMin"])))
+                        + ","
+                        + str(round(float(label["yMax"])))
+                        + ","
+                        + str(label["dformat"])
+                        + "\n"
+                        )
+                # coTox(image,label["id"],label["name"],round(float(label["xMin"])),round(float(label["yMin"])),round(float(label["xMax"])),round(float(label["yMax"])))
+        app.config["LABELS"] = []
+        return redirect(url_for("tagger", token=[token], done=[done], folder=folder))
+    except:
+        flash("Sorry, Something went wrong!!")
+        return redirect("template")
 
 
 @app.route("/previous")
 @token_required
 @login_required
 def previous():
-    token = current_user.token
-    done = request.args.get("done")
-    folder = session.get('folder')
-    # image = app.config["FILES"][app.config["HEAD"]]
-    # image=str(app.config["HEAD"])+".jpg"
-    image = str(app.config["uploaded_files"][app.config["HEAD"]])
+    try:
+        token = current_user.token
+        done = request.args.get("done")
+        folder = session.get('folder')
+        # image = app.config["FILES"][app.config["HEAD"]]
+        # image=str(app.config["HEAD"])+".jpg"
+        image = str(app.config["uploaded_files"][app.config["HEAD"]])
 
-    with open(app.config["OUT"], "a") as f:
-        for label in app.config["LABELS"]:
-            f.write(label["id"]
-                    + ","
-                    + label["name"]
-                    + ","
-                    + str(round(float(label["xMin"])))
-                    + ","
-                    + str(round(float(label["xMax"])))
-                    + ","
-                    + str(round(float(label["yMin"])))
-                    + ","
-                    + str(round(float(label["yMax"])))
-                    + ","
-                    + str(label["dformat"])
-                    + "\n"
-                    )
-            # coTox(image,label["id"],label["name"],round(float(label["xMin"])),round(float(label["yMin"])),round(float(label["xMax"])),round(float(label["yMax"])))
-    app.config["LABELS"] = []
+        with open(app.config["OUT"], "a") as f:
+            for label in app.config["LABELS"]:
+                f.write(label["id"]
+                        + ","
+                        + label["name"]
+                        + ","
+                        + str(round(float(label["xMin"])))
+                        + ","
+                        + str(round(float(label["xMax"])))
+                        + ","
+                        + str(round(float(label["yMin"])))
+                        + ","
+                        + str(round(float(label["yMax"])))
+                        + ","
+                        + str(label["dformat"])
+                        + "\n"
+                        )
+                # coTox(image,label["id"],label["name"],round(float(label["xMin"])),round(float(label["yMin"])),round(float(label["xMax"])),round(float(label["yMax"])))
+        app.config["LABELS"] = []
 
-    app.config["HEAD"] = app.config["HEAD"] - 1
-    return redirect(url_for("tagger", token=[token], folder=folder, done=[done], image=[image]))
+        app.config["HEAD"] = app.config["HEAD"] - 1
+        return redirect(url_for("tagger", token=[token], folder=folder, done=[done], image=[image]))
+    except:
+        flash("Sorry, Something went wrong!!")
+        return redirect("template")
 
 
 @app.route("/add/<id>")
 @token_required
 @login_required
 def add(id):
-    token = current_user.token
-    folder = session.get('folder')
-    xMin = request.args.get("xMin")
-    xMax = request.args.get("xMax")
-    yMin = request.args.get("yMin")
-    yMax = request.args.get("yMax")
-    app.config["LABELS"].append(
-        {
-            "id": id,
-            "name": "",
-            "xMin": xMin,
-            "xMax": xMax,
-            "yMin": yMin,
-            "yMax": yMax,
-            "dformat": "",
-        }
-    )
-    return redirect(url_for("tagger", token=[token], folder=folder))
+    try:
+        token = current_user.token
+        folder = session.get('folder')
+        xMin = request.args.get("xMin")
+        xMax = request.args.get("xMax")
+        yMin = request.args.get("yMin")
+        yMax = request.args.get("yMax")
+        app.config["LABELS"].append(
+            {
+                "id": id,
+                "name": "",
+                "xMin": xMin,
+                "xMax": xMax,
+                "yMin": yMin,
+                "yMax": yMax,
+                "dformat": "",
+            }
+        )
+        return redirect(url_for("tagger", token=[token], folder=folder))
+    except:
+        flash("Sorry, Something went wrong!!")
+        return redirect("template")
 
 
 @app.route("/remove/<id>")
 @token_required
 @login_required
 def remove(id):
-    token = current_user.token
-    index = int(id) - 1
-    folder = session.get('folder')
-    del app.config["LABELS"][index]
-    for label in app.config["LABELS"][index:]:
-        label["id"] = str(int(label["id"]) - 1)
-    return redirect(url_for("tagger", token=[token], folder=folder))
+    try:
+        token = current_user.token
+        index = int(id) - 1
+        folder = session.get('folder')
+        del app.config["LABELS"][index]
+        for label in app.config["LABELS"][index:]:
+            label["id"] = str(int(label["id"]) - 1)
+        return redirect(url_for("tagger", token=[token], folder=folder))
+    except:
+        flash("Sorry, Something went wrong!!")
+        return redirect("template")
 
 
-@app.route('/viewimage/<folder>', methods=["GET", "POST"])
+@app.route(f'/{encrypt("viewimage")}/<folder>', methods=["GET", "POST"])
 def view_image(folder):
-    folder_path = os.path.join("static", "upload", "images", folder)
-    files = os.listdir(folder_path)
-    return send_file(os.path.join(folder_path, files[0]), mimetype='image')
+    try:
+        folder_path = os.path.join("static", "upload", "images", folder)
+        files = os.listdir(folder_path)
+        return send_file(os.path.join(folder_path, files[0]), mimetype='image')
+    except:
+        flash("Sorry, Something went wrong!!")
+        return redirect("template")
 
 
 # Route for managing uploads of templates and image/PDF files.
-@app.route("/upload/<int:id>", methods=["GET", "POST"])
+@app.route(f'/{encrypt("upload")}/<int:id>', methods=["GET", "POST"])
 @token_required
 @login_required
 def upload(id):
-    files = None
-    already_posted_files = "no"
     try:
-        os.mkdir("./upload_normal")
-    except:
-        pass
-    token = current_user.token
-    app.config["HEAD"] = 0
-    date = request.form.get("date")
-    time = request.form.get("time")
-    choose_scheduler = request.form.get("choose-scheduler")
-    print("choose-scheduler", choose_scheduler)
-    cor_data = Cordinate_Data.query.filter_by(cord_id=id).first()
-    form = UploadFileForm()
-    if request.method == "POST":
-        already_posted_files = "yes"
-        files = form.file.data
-        jsonfile = form.jsonfile.data
-        option = request.form["option"]
-        if option == "2":
-            jsonfile.save(
-                os.path.join(
-                    os.path.abspath(os.path.dirname(__file__)),
-                    "./static/jsonfile",
-                    secure_filename(jsonfile.filename),
+        files = None
+        already_posted_files = "no"
+        try:
+            os.mkdir("./upload_normal")
+        except:
+            pass
+        token = current_user.token
+        app.config["HEAD"] = 0
+        date = request.form.get("date")
+        time = request.form.get("time")
+        choose_scheduler = request.form.get("choose-scheduler")
+        print("choose-scheduler", choose_scheduler)
+        cor_data = Cordinate_Data.query.filter_by(cord_id=id).first()
+        form = UploadFileForm()
+        if request.method == "POST":
+            already_posted_files = "yes"
+            files = form.file.data
+            jsonfile = form.jsonfile.data
+            option = request.form["option"]
+            if option == "2":
+                jsonfile.save(
+                    os.path.join(
+                        os.path.abspath(os.path.dirname(__file__)),
+                        "./static/jsonfile",
+                        secure_filename(jsonfile.filename),
+                    )
                 )
-            )
-        app.config["Data"] = []
-        new_data = {}
-        count_img = 0
-        filenames = []
-        folder_path = os.path.join(
-
-            os.path.abspath(os.path.dirname(__file__)),
-
-            app.config["UPLOAD_FOLDER_NORMAL"],
-
-            str(uuid.uuid4()))
-        os.mkdir(folder_path)
-        if choose_scheduler:
-            # If the scheduler is chosen, save the task to the database and redirect to the thank you page.
-            print("INSIDE CHOOSE")
             app.config["Data"] = []
             new_data = {}
             count_img = 0
+            filenames = []
+            folder_path = os.path.join(
 
-            for file in files:
-                extention = os.path.splitext(file.filename)[1].lower()
+                os.path.abspath(os.path.dirname(__file__)),
 
-                # Generate a unique filename for the PNG conversion
-                png_filename = str(uuid.uuid4()) + ".png"
+                app.config["UPLOAD_FOLDER_NORMAL"],
 
-                if extention in ['.jpg', '.jpeg', '.gif', '.png', '.tif', '.tiff']:
-                    # Convert image files to PNG using PIL
-                    with Image.open(file) as img:
-                        # Convert the image to RGB mode if it's not already
-                        if img.mode != "RGB":
-                            img = img.convert("RGB")
+                str(uuid.uuid4()))
+            os.mkdir(folder_path)
+            if choose_scheduler:
+                # If the scheduler is chosen, save the task to the database and redirect to the thank you page.
+                print("INSIDE CHOOSE")
+                app.config["Data"] = []
+                new_data = {}
+                count_img = 0
 
-                        # Convert and save the image to PNG format
-                        png_path = os.path.join(folder_path, secure_filename(png_filename))
-                        img.save(png_path, format="PNG")
-                elif extention == ".pdf":
-                    # Convert PDF files to PNG using pdf2image
-                    pdf_path = os.path.join(folder_path, secure_filename(file.filename))
-                    file.save(pdf_path)
+                for file in files:
+                    extention = os.path.splitext(file.filename)[1].lower()
 
-                    # Convert each PDF page to a PNG image
-                    pdf_images = convert_from_path(pdf_path, dpi=300)
-                    for page_num, pdf_image in enumerate(pdf_images):
-                        if page_num >= 100:
-                            break  # Limit to 100 pages
-                        png_path = os.path.join(folder_path, f"page_{page_num + 1}.png")
-                        pdf_image.save(png_path, format="PNG")  # Then save the file
+                    # Generate a unique filename for the PNG conversion
+                    png_filename = str(uuid.uuid4()) + ".png"
 
-            scheduled_time = request.form.get('scheduled_time')  # Get the scheduled extraction time from the form
-            schedule_extraction(current_user.id, folder_path, option, cor_data, scheduled_time)
-            if already_posted_files == "yes":
-                return render_template("thanks.html")
+                    if extention in ['.jpg', '.jpeg', '.gif', '.png', '.tif', '.tiff']:
+                        # Convert image files to PNG using PIL
+                        with Image.open(file) as img:
+                            # Convert the image to RGB mode if it's not already
+                            if img.mode != "RGB":
+                                img = img.convert("RGB")
+
+                            # Convert and save the image to PNG format
+                            png_path = os.path.join(folder_path, secure_filename(png_filename))
+                            img.save(png_path, format="PNG")
+                    elif extention == ".pdf":
+                        # Convert PDF files to PNG using pdf2image
+                        pdf_path = os.path.join(folder_path, secure_filename(file.filename))
+                        file.save(pdf_path)
+
+                        # Convert each PDF page to a PNG image
+                        pdf_images = convert_from_path(pdf_path, dpi=300)
+                        for page_num, pdf_image in enumerate(pdf_images):
+                            if page_num >= 100:
+                                break  # Limit to 100 pages
+                            png_path = os.path.join(folder_path, f"page_{page_num + 1}.png")
+                            pdf_image.save(png_path, format="PNG")  # Then save the file
+
+                scheduled_time = request.form.get('scheduled_time')  # Get the scheduled extraction time from the form
+                schedule_extraction(current_user.id, folder_path, option, cor_data, scheduled_time)
+                if already_posted_files == "yes":
+                    return render_template("thanks.html")
 
 
-        else:
+            else:
 
-            print("INSIDE NORMAL")
+                print("INSIDE NORMAL")
 
-            app.config["Data"] = []
+                app.config["Data"] = []
 
-            new_data = {}
+                new_data = {}
 
-            count_img = 0
+                count_img = 0
 
-            for file in files:
-                extention = os.path.splitext(file.filename)[1].lower()
+                for file in files:
+                    extention = os.path.splitext(file.filename)[1].lower()
 
-                # Generate a unique filename for the PNG conversion
-                png_filename = str(uuid.uuid4()) + ".png"
+                    # Generate a unique filename for the PNG conversion
+                    png_filename = str(uuid.uuid4()) + ".png"
 
-                if extention in ['.jpg', '.jpeg', '.gif', '.png', '.tif', '.tiff']:
-                    # Convert image files to PNG using PIL
-                    with Image.open(file) as img:
-                        # Convert the image to RGB mode if it's not already
-                        if img.mode != "RGB":
-                            img = img.convert("RGB")
+                    if extention in ['.jpg', '.jpeg', '.gif', '.png', '.tif', '.tiff']:
+                        # Convert image files to PNG using PIL
+                        with Image.open(file) as img:
+                            # Convert the image to RGB mode if it's not already
+                            if img.mode != "RGB":
+                                img = img.convert("RGB")
 
-                        # Convert and save the image to PNG format
-                        png_path = os.path.join(folder_path, secure_filename(png_filename))
-                        img.save(png_path, format="PNG")
-                elif extention == ".pdf":
-                    # Convert PDF files to PNG using pdf2image
-                    pdf_path = os.path.join(folder_path, secure_filename(file.filename))
-                    file.save(pdf_path)
+                            # Convert and save the image to PNG format
+                            png_path = os.path.join(folder_path, secure_filename(png_filename))
+                            img.save(png_path, format="PNG")
+                    elif extention == ".pdf":
+                        # Convert PDF files to PNG using pdf2image
+                        pdf_path = os.path.join(folder_path, secure_filename(file.filename))
+                        file.save(pdf_path)
 
-                    # Convert each PDF page to a PNG image
-                    pdf_images = convert_from_path(pdf_path, dpi=300)
-                    for page_num, pdf_image in enumerate(pdf_images):
-                        if page_num >= 100:
-                            break  # Limit to 100 pages
-                        png_path = os.path.join(folder_path, f"page_{page_num + 1}.png")
-                        pdf_image.save(png_path, format="PNG")  # Then save the file
-            id1 = MainImg(current_user.id, folder_path, option, cor_data)
+                        # Convert each PDF page to a PNG image
+                        pdf_images = convert_from_path(pdf_path, dpi=300)
+                        for page_num, pdf_image in enumerate(pdf_images):
+                            if page_num >= 100:
+                                break  # Limit to 100 pages
+                            png_path = os.path.join(folder_path, f"page_{page_num + 1}.png")
+                            pdf_image.save(png_path, format="PNG")  # Then save the file
+                id1 = MainImg(current_user.id, folder_path, option, cor_data)
 
-        return redirect(url_for("download", id=id1, token=[token]))
+            return redirect(url_for("download", id=id1, token=[token]))
 
-    try:
-        shutil.rmtree("./static/jsonfile_normal")
-        shutil.rmtree("./static/static/images_normal")
-        flash("Please wait for converting")
-        os.mkdir("./static/jsonfile_normal")
-        os.mkdir("./static/static/images_normal")
+        try:
+            shutil.rmtree("./static/jsonfile_normal")
+            shutil.rmtree("./static/static/images_normal")
+            flash("Please wait for converting")
+            os.mkdir("./static/jsonfile_normal")
+            os.mkdir("./static/static/images_normal")
+        except:
+            pass
+
+        d = tbl_user.query.filter_by(id=current_user.id).first()
+        return render_template("upload.html", form=form, token=token, status=int(d.status))
     except:
-        pass
-
-    d = tbl_user.query.filter_by(id=current_user.id).first()
-    return render_template("upload.html", form=form, token=token, status=int(d.status))
+        return redirect(url_for("template"))
 
 
 # Route for changing user status
@@ -1052,17 +1098,21 @@ def FormatChange():
 @token_required
 @login_required
 def delete_extract(id):
-    # Get the 'token' from the request arguments
-    token = current_user.token
     try:
-        # Delete data from the Extracted_Data table for the specified user
-        d = ExtractedFiles.query.filter_by(id=id).first()
-        db.session.delete(d)
-        db.session.commit()
+        # Get the 'token' from the request arguments
+        token = current_user.token
+        try:
+            # Delete data from the Extracted_Data table for the specified user
+            d = ExtractedFiles.query.filter_by(id=id).first()
+            db.session.delete(d)
+            db.session.commit()
+        except:
+            pass
+        flash("File Deleted!!")
+        return redirect(url_for("download_list", token=[token]))
     except:
-        pass
-    flash("File Deleted!!")
-    return redirect(url_for("download_list", token=[token]))
+        flash("Sorry, Something went wrong!!")
+        return redirect("template")
 
 
 # Route for deleting data
@@ -1070,15 +1120,19 @@ def delete_extract(id):
 @token_required
 @login_required
 def delete(id):
-    # Get the 'token' from the request arguments
-    token = current_user.token
+    try:
+        # Get the 'token' from the request arguments
+        token = current_user.token
 
-    # Delete data from the Cordinate_Data table for the specified user
-    d = Cordinate_Data.query.filter_by(cord_id=id, user_id=current_user.id).first()
-    db.session.delete(d)
-    db.session.commit()
+        # Delete data from the Cordinate_Data table for the specified user
+        d = Cordinate_Data.query.filter_by(cord_id=id, user_id=current_user.id).first()
+        db.session.delete(d)
+        db.session.commit()
 
-    return redirect(url_for("template", token=[token]))
+        return redirect(url_for("template", token=[token]))
+    except:
+        flash("Sorry, Something went wrong!!")
+        return redirect("template")
 
 
 # Route for updating label information
@@ -1107,7 +1161,7 @@ def images(f):
     return send_file(images + f"/{f}")
 
 
-@app.route('/download_list', methods=["POST", "GET"])
+@app.route(f'/{encrypt("download_list")}', methods=["POST", "GET"])
 @token_required
 @login_required
 def download_list():
@@ -1116,7 +1170,7 @@ def download_list():
 
 
 # Route for downloading data as JSON
-@app.route("/download/<int:id>", methods=["POST", "GET"])
+@app.route(f'/{encrypt("download")}/<int:id>', methods=["POST", "GET"])
 @login_required
 def download(id):
     # Get the 'token' from the request arguments
@@ -1150,10 +1204,10 @@ def download(id):
         )
 
     except NoResultFound:
-        return redirect(url_for("dashboard"))
+        return redirect(url_for("template"))
 
 
-@app.route('/upload_csv/<id1>', methods=['GET', 'POST'])
+@app.route(f'/{encrypt("upload_csv")}/<id1>', methods=['GET', 'POST'])
 def upload_csv(id1):
     # Fetch user data from the database
     d = ExtractedFiles.query.filter_by(id=id1).first()
@@ -1204,7 +1258,7 @@ def save_changes(id1):
     return redirect(url_for("download", id=id1))
 
 
-@app.route("/requested_users")
+@app.route(f'/{encrypt("requested_users")}')
 @login_required
 def requested_user():
     if current_user.type == "Admin" or current_user.type == "Employee":
@@ -1222,7 +1276,7 @@ def requested_user():
         return redirect(url_for("template"))
 
 
-@app.route("/registered_users")
+@app.route(f'/{encrypt("registered_users")}')
 @login_required
 def registered_user():
     if current_user.type == "Admin":
@@ -1322,7 +1376,7 @@ def edit_user(id):
     return render_template("edit_user.html", id=id)
 
 
-@app.route("/list_ip_mac_request")
+@app.route(f'/{encrypt("list_ip_mac_request")}')
 @login_required
 def list_ip():
     data = db.session.query(ip_req).all()
@@ -1379,7 +1433,7 @@ def applyonfolder(id):
     return redirect(url_for("upload", id=id))
 
 
-@app.route("/setting", methods=["POST", "GET"])
+@app.route(f'/{encrypt("setting")}', methods=["POST", "GET"])
 @login_required
 def setting():
     d = tbl_user.query.filter_by(id=current_user.id).first()
@@ -1395,6 +1449,12 @@ def switch_theme():
     if selected_theme:
         session['theme'] = selected_theme
     return redirect(url_for('setting'))
+
+
+@app.errorhandler(404)
+def page_not_found(e):
+    flash("Page Not found!!")
+    return redirect(url_for("template")), 404
 
 
 if __name__ == "__main__":
