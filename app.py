@@ -1,9 +1,9 @@
 import jwt
 from PIL import Image
-from flask import Flask, render_template, request, redirect, url_for, abort, flash, send_file, jsonify, \
-    send_from_directory, session
+from flask import (Flask, render_template, request, redirect, url_for, flash, send_file, jsonify,
+                   send_from_directory, session)
 from flask_login import UserMixin, logout_user, current_user, login_user, LoginManager, login_required
-from wtforms import StringField, PasswordField, SubmitField, MultipleFileField, FileField, RadioField
+from wtforms import StringField, PasswordField, SubmitField, MultipleFileField, FileField
 from wtforms.validators import InputRequired, Length, Email
 from flask_wtf import FlaskForm
 from flask_sqlalchemy import SQLAlchemy
@@ -13,14 +13,12 @@ from pytz import timezone
 from flask_bcrypt import Bcrypt
 import socket
 from functools import wraps
-import base64
 import datetime
 import shutil
-import json
 from werkzeug.utils import secure_filename
 import pandas as pd
+import json
 from pdf2image import convert_from_path
-import pickle
 import csv
 import uuid
 import cv2
@@ -78,16 +76,19 @@ def load_user(user_id):
 
 
 def mail(email, content, sub):
-    MY_EMAIL = "testappmail2023@gmail.com"
-    MY_PASSWORD = "qykebkmdnxhxwywk"
-    with smtplib.SMTP("smtp.gmail.com") as connection:
-        connection.starttls()
-        connection.login(MY_EMAIL, MY_PASSWORD)
-        connection.sendmail(
-            from_addr=MY_EMAIL,
-            to_addrs=email,
-            msg=f"Subject:{sub}\n\n{content}"
-        )
+    MY_EMAIL = ""
+    MY_PASSWORD = ""
+    try:
+        with smtplib.SMTP("smtp.gmail.com") as connection:
+            connection.starttls()
+            connection.login(MY_EMAIL, MY_PASSWORD)
+            connection.sendmail(
+                from_addr=MY_EMAIL,
+                to_addrs=email,
+                msg=f"Subject:{sub}\n\n{content}"
+            )
+    except:
+        pass
 
 
 def get_mac_address():
@@ -111,7 +112,35 @@ def detectText(content):
     return data
 
 
-def MainImg(user_id, image_folder, option, data):
+def process_extracted_text(extracted_text):
+    # Split the extracted text by lines
+    lines = extracted_text.strip().split('\n')
+
+    # Assuming the first line contains column titles
+    column_titles = lines[0].split()
+
+    # Initialize a list to store the table data
+    table_data = []
+
+    # Process the remaining lines
+    for line in lines[1:]:
+        # Split each line by spaces
+        values = line.split()
+
+        # Create a dictionary to store the row data
+        row = {}
+
+        # Iterate through column titles and values and add them to the row dictionary
+        for title, value in zip(column_titles, values):
+            row[title] = value
+
+        # Append the row to the table data
+        table_data.append(row)
+
+    return table_data
+
+
+def MainImg(user_id, image_folder, option, data, lang, type1):
     with app.app_context():
         pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
         csv_filename = f'{uuid.uuid1()}extracted_data.csv'
@@ -125,65 +154,112 @@ def MainImg(user_id, image_folder, option, data):
         # Define a data structure to store extracted data for all images
         all_extracted_data = []
 
-        # Process each image in the folder
-        for image_filename in os.listdir(image_folder):
-            if image_filename.endswith(('.jpg', '.png', '.jpeg', '.tif', '.tiff')):
-                print(f"Processing image: {image_filename}")
+        if type1 == "text":
+            # Process each image in the folder
+            for image_filename in os.listdir(image_folder):
+                if image_filename.endswith(('.jpg', '.png', '.jpeg', '.tif', '.tiff')):
+                    print(f"Processing image: {image_filename}")
 
-                # Define a data structure to store extracted data for this image
-                extracted_data = {}
+                    # Define a data structure to store extracted data for this image
+                    extracted_data = {}
 
-                # Load the image using OpenCV
-                image = cv2.imread(os.path.join(image_folder, image_filename))
+                    # Load the image using OpenCV
+                    image = cv2.imread(os.path.join(image_folder, image_filename))
 
-                # Process each set of coordinates
-                for coord in coordinates_data:
-                    _, column_title, x_min, x_max, y_min, y_max, data_type = coord
+                    # Process each set of coordinates
+                    for coord in coordinates_data:
+                        _, column_title, x_min, x_max, y_min, y_max, data_type = coord
 
-                    # Print image dimensions and coordinates for debugging
-                    print(f"Image dimensions: {image.shape}")
-                    print(f"Coordinates: x_min={x_min}, x_max={x_max}, y_min={y_min}, y_max={y_max}")
+                        # Print image dimensions and coordinates for debugging
+                        print(f"Image dimensions: {image.shape}")
+                        print(f"Coordinates: x_min={x_min}, x_max={x_max}, y_min={y_min}, y_max={y_max}")
 
-                    x_min = int(x_min)
-                    x_max = int(x_max)
-                    y_min = int(y_min)
-                    y_max = int(y_max)
+                        x_min = int(x_min)
+                        x_max = int(x_max)
+                        y_min = int(y_min)
+                        y_max = int(y_max)
 
-                    # Check if coordinates are within image boundaries
-                    if x_min < 0 or x_max > image.shape[1] or y_min < 0 or y_max > image.shape[0]:
-                        print("Error: Coordinates are outside image boundaries")
-                        continue  # Skip this iteration
+                        # Check if coordinates are within image boundaries
+                        if x_min < 0 or x_max > image.shape[1] or y_min < 0 or y_max > image.shape[0]:
+                            print("Error: Coordinates are outside image boundaries")
+                            continue  # Skip this iteration
 
-                    # Extract the region of interest (ROI) using coordinates
-                    roi = image[y_min:y_max, x_min:x_max]
-                    if option == "1":
-                        # Perform OCR on the ROI
-                        extracted_text = pytesseract.image_to_string(roi, lang='eng', config='--psm 6')
-                        extracted_data[column_title] = extracted_text.strip()
-                    elif option == "2":
-                        # Google Cloud Vision
-                        success, roi_encoded = cv2.imencode('.png', roi)
-                        roi_content = roi_encoded.tobytes()
-                        extracted_text = detectText(roi_content)
-                        extracted_data[column_title] = extracted_text.strip()
+                        # Extract the region of interest (ROI) using coordinates
+                        roi = image[y_min:y_max, x_min:x_max]
+                        if option == "1":
+                            # Perform OCR on the ROI
+                            extracted_text = pytesseract.image_to_string(roi, lang=lang, config='--psm 6')
+                            extracted_data[column_title] = extracted_text.strip()
+                        elif option == "2":
+                            # Google Cloud Vision
+                            success, roi_encoded = cv2.imencode('.png', roi)
+                            roi_content = roi_encoded.tobytes()
+                            extracted_text = detectText(roi_content)
+                            extracted_data[column_title] = extracted_text.strip()
 
-                # Append extracted data for this image to the list of all_extracted_data
-                print(extracted_data)
-                all_extracted_data.append(extracted_data)
+                    # Append extracted data for this image to the list of all_extracted_data
+                    print(extracted_data)
+                    all_extracted_data.append(extracted_data)
 
-        # Save all extracted data as CSV
-        csv_file_path = os.path.join("./static/csvfile", csv_filename)
-        with open(csv_file_path, 'w', newline='') as csv_file:
-            if all_extracted_data:
-                csv_writer = csv.DictWriter(csv_file, fieldnames=all_extracted_data[0].keys())
+            # Save all extracted data as CSV
+            csv_file_path = os.path.join("./static/csvfile", csv_filename)
+            with open(csv_file_path, 'w', newline='', encoding='utf-8') as csv_file:
+                if all_extracted_data:
+                    csv_writer = csv.DictWriter(csv_file, fieldnames=all_extracted_data[0].keys())
 
-                # Write the CSV header
-                csv_writer.writeheader()
+                    # Write the CSV header
+                    csv_writer.writeheader()
 
-                # Write the extracted data rows
-                csv_writer.writerows(all_extracted_data)
-                print(all_extracted_data)
+                    # Write the extracted data rows
+                    csv_writer.writerows(all_extracted_data)
+                    print(all_extracted_data)
+        elif type1 == "table":
+            for image_filename in os.listdir(image_folder):
+                if image_filename.endswith(('.jpg', '.png', '.jpeg', '.tif', '.tiff')):
+                    extracted_data = {}  # Move this line here
 
+                    # Load the image using OpenCV
+                    image = cv2.imread(os.path.join(image_folder, image_filename))
+
+                    print(f"Processing image: {image_filename}")
+                    # Process each set of coordinates
+                    for coord in coordinates_data:
+                        _, column_title, x_min, x_max, y_min, y_max, data_type = coord
+                        # Print image dimensions and coordinates for debugging
+                        print(f"Image dimensions: {image.shape}")
+                        print(f"Coordinates: x_min={x_min}, x_max={x_max}, y_min={y_min}, y_max={y_max}")
+
+                        x_min = int(x_min)
+                        x_max = int(x_max)
+                        y_min = int(y_min)
+                        y_max = int(y_max)
+
+                        # Check if coordinates are within image boundaries
+                        if x_min < 0 or x_max > image.shape[1] or y_min < 0 or y_max > image.shape[0]:
+                            print("Error: Coordinates are outside image boundaries")
+                            continue
+
+                        # Extract the region of interest (ROI) using coordinates
+                        roi = image[y_min:y_max, x_min:x_max]
+
+                        # Convert the ROI to grayscale
+                        gray_roi = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+
+                        # Apply thresholding to enhance text
+                        _, thresholded = cv2.threshold(gray_roi, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+                        # Perform OCR on the ROI with Tesseract
+                        extracted_text = pytesseract.image_to_string(thresholded, lang=lang)
+                        print(f"Extracted text:\n{extracted_text}")
+
+                        table_data = process_extracted_text(extracted_text)
+            # Convert list of dictionaries to DataFrame
+            df = pd.DataFrame(table_data)
+
+            # Save DataFrame as CSV
+            csv_file_path = os.path.join("./static/csvfile", csv_filename)
+            df.to_csv(csv_file_path, index=False)
+            print(df)
         encoded_csv_filename = os.path.basename(csv_file_path).encode('utf-8')
         extract = ExtractedFiles(user_id=user_id, csvfilename=encoded_csv_filename,
                                  date_time=datetime.datetime.now(timezone('Asia/Kolkata')))
@@ -193,7 +269,7 @@ def MainImg(user_id, image_folder, option, data):
         return extract.id
 
 
-def schedule_extraction(user_id, image_folder, option, data, scheduled_time):
+def schedule_extraction(user_id, image_folder, option, data, scheduled_time, lang, type):
     current_time = datetime.datetime.now()
     extraction_time = datetime.datetime.strptime(scheduled_time, "%Y-%m-%dT%H:%M")
 
@@ -201,7 +277,7 @@ def schedule_extraction(user_id, image_folder, option, data, scheduled_time):
         return redirect(url_for("template"))
 
     time_difference = (extraction_time - current_time).total_seconds()
-    timer = threading.Timer(time_difference, MainImg, args=(user_id, image_folder, option, data,))
+    timer = threading.Timer(time_difference, MainImg, args=(user_id, image_folder, option, data, lang, type))
     timer.start()
     print(f'Scheduled{timer}')
     scheduled_tasks[image_folder] = timer
@@ -572,19 +648,13 @@ def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in app.config["ALLOWED_EXTENSIONS"]
 
 
-@app.route(f'/{encrypt("temp_success")}/<id1>/<folder1>', methods=['GET', 'POST'])
-@login_required
-def temp_success(id1, folder1):
-    return render_template("temp.html", id1=id1, folder1=folder1)
-
-
 # This is for extarction purpose after craetion of template
-@app.route(f'/{encrypt("Extract")}/<id1>/<folder1>', methods=["GET", "POST"])
+@app.route(f'/{encrypt("Extract")}/<id1>/<folder1>/<lang>/<type>', methods=["GET", "POST"])
 @login_required
-def Extract(id1, folder1):
+def Extract(id1, folder1, lang, type):
     cor_data = Cordinate_Data.query.filter_by(cord_id=id1).first()
     file_folder = os.path.join("static", "upload", "images", folder1)
-    file_id = MainImg(current_user.id, file_folder, "1", cor_data)
+    file_id = MainImg(current_user.id, file_folder, "1", cor_data, lang, type)
     return redirect(url_for("download", id=file_id))
 
 
@@ -616,6 +686,8 @@ def template():
 
     if request.method == "POST":
         # Process uploaded files and store them in the appropriate folders.
+        lang = request.form["language"]
+        session['type1'] = request.form["type"]
         files = form.file.data
         if len(files) == 0:
             flash('No files selected')
@@ -679,7 +751,7 @@ def template():
         print("filenames:", files)
         app.config["FILES"] = files
         print(f"Redirecting to tagger with folder: {folder}")
-        return redirect(url_for('tagger', token=token, folder=folder))
+        return redirect(url_for('tagger', token=token, folder=folder, lang=lang))
     else:
         # Fetch data related to templates from the database.
         Data = Cordinate_Data.query.filter_by(user_id=current_user.id).all()
@@ -702,15 +774,16 @@ def serve_image(folder, filename):
 
 
 # Route for tagging images and PDFs with coordinates.
-@app.route(f'/{encrypt("tagger")}/<folder>', methods=["GET", "POST"])
+@app.route(f'/{encrypt("tagger")}/<folder>/<lang>', methods=["GET", "POST"])
 @token_required
 @login_required
-def tagger(folder):
+def tagger(folder, lang):
     if current_user.type == "User":
         try:
             token = current_user.token
             done = request.args.get("done")
             image = request.args.get("image")
+            session['lang'] = lang
             if done == "Yes":
                 with open(app.config["OUT"], "a") as f:
                     for label in app.config["LABELS"]:
@@ -756,7 +829,8 @@ def tagger(folder):
                 db.session.commit()
                 with open(app.config["OUT"], "r+") as f:
                     f.truncate(0)
-                return redirect(url_for("Extract", id1=adddata.cord_id, folder1=folder))
+                return redirect(
+                    url_for("Extract", id1=adddata.cord_id, folder1=folder, lang=lang, type=session['type1']))
 
             if type(app.config["uploaded_files"][app.config["HEAD"]]) == str:
                 image = app.config["FILES"][app.config["HEAD"]]
@@ -812,7 +886,7 @@ def next():
                         )
                 # coTox(image,label["id"],label["name"],round(float(label["xMin"])),round(float(label["yMin"])),round(float(label["xMax"])),round(float(label["yMax"])))
         app.config["LABELS"] = []
-        return redirect(url_for("tagger", token=[token], done=[done], folder=folder))
+        return redirect(url_for("tagger", token=[token], done=[done], folder=folder, lang=session["lang"]))
     except:
         flash("Sorry, Something went wrong!!")
         return redirect("template")
@@ -851,7 +925,8 @@ def previous():
         app.config["LABELS"] = []
 
         app.config["HEAD"] = app.config["HEAD"] - 1
-        return redirect(url_for("tagger", token=[token], folder=folder, done=[done], image=[image]))
+        return redirect(
+            url_for("tagger", token=[token], folder=folder, done=[done], image=[image], lang=session['lang']))
     except:
         flash("Sorry, Something went wrong!!")
         return redirect("template")
@@ -879,7 +954,7 @@ def add(id):
                 "dformat": "",
             }
         )
-        return redirect(url_for("tagger", token=[token], folder=folder))
+        return redirect(url_for("tagger", token=[token], folder=folder, lang=session['lang']))
     except:
         flash("Sorry, Something went wrong!!")
         return redirect("template")
@@ -896,7 +971,7 @@ def remove(id):
         del app.config["LABELS"][index]
         for label in app.config["LABELS"][index:]:
             label["id"] = str(int(label["id"]) - 1)
-        return redirect(url_for("tagger", token=[token], folder=folder))
+        return redirect(url_for("tagger", token=[token], folder=folder, lang=session["lang"]))
     except:
         flash("Sorry, Something went wrong!!")
         return redirect("template")
@@ -927,14 +1002,14 @@ def upload(id):
             pass
         token = current_user.token
         app.config["HEAD"] = 0
-        date = request.form.get("date")
-        time = request.form.get("time")
         choose_scheduler = request.form.get("choose-scheduler")
         print("choose-scheduler", choose_scheduler)
         cor_data = Cordinate_Data.query.filter_by(cord_id=id).first()
         form = UploadFileForm()
         if request.method == "POST":
             already_posted_files = "yes"
+            lang = request.form["language"]
+            type = request.form["type"]
             files = form.file.data
             jsonfile = form.jsonfile.data
             option = request.form["option"]
@@ -947,9 +1022,6 @@ def upload(id):
                     )
                 )
             app.config["Data"] = []
-            new_data = {}
-            count_img = 0
-            filenames = []
             folder_path = os.path.join(
 
                 os.path.abspath(os.path.dirname(__file__)),
@@ -962,8 +1034,6 @@ def upload(id):
                 # If the scheduler is chosen, save the task to the database and redirect to the thank you page.
                 print("INSIDE CHOOSE")
                 app.config["Data"] = []
-                new_data = {}
-                count_img = 0
 
                 for file in files:
                     extention = os.path.splitext(file.filename)[1].lower()
@@ -995,7 +1065,7 @@ def upload(id):
                             pdf_image.save(png_path, format="PNG")  # Then save the file
 
                 scheduled_time = request.form.get('scheduled_time')  # Get the scheduled extraction time from the form
-                schedule_extraction(current_user.id, folder_path, option, cor_data, scheduled_time)
+                schedule_extraction(current_user.id, folder_path, option, cor_data, scheduled_time, lang, type)
                 if already_posted_files == "yes":
                     return render_template("thanks.html")
 
@@ -1005,10 +1075,6 @@ def upload(id):
                 print("INSIDE NORMAL")
 
                 app.config["Data"] = []
-
-                new_data = {}
-
-                count_img = 0
 
                 for file in files:
                     extention = os.path.splitext(file.filename)[1].lower()
@@ -1038,7 +1104,7 @@ def upload(id):
                                 break  # Limit to 100 pages
                             png_path = os.path.join(folder_path, f"page_{page_num + 1}.png")
                             pdf_image.save(png_path, format="PNG")  # Then save the file
-                id1 = MainImg(current_user.id, folder_path, option, cor_data)
+                id1 = MainImg(current_user.id, folder_path, option, cor_data, lang, type)
 
             return redirect(url_for("download", id=id1, token=[token]))
 
@@ -1151,7 +1217,7 @@ def label(id):
     except IndexError:
         return redirect(url_for("template"))
 
-    return redirect(url_for("tagger", folder=folder, token=[token]))
+    return redirect(url_for("tagger", folder=folder, token=[token], lang=session["lang"]))
 
 
 # Route for sending images
@@ -1190,7 +1256,7 @@ def download(id):
         df = pd.read_csv(csv_path)
 
         # Convert the DataFrame to JSON
-        json_data = df.to_json(orient='records', indent=4)
+        json_data = json.loads(df.to_json(orient='records', indent=4))
 
         # Render the template with data
         return render_template(
@@ -1204,6 +1270,7 @@ def download(id):
         )
 
     except NoResultFound:
+        flash("File Not Found!!")
         return redirect(url_for("template"))
 
 
@@ -1220,7 +1287,11 @@ def upload_csv(id1):
 
     # Load CSV data using pandas
     df = pd.read_csv(csv_path)
-    return render_template('edit_csv.html', df=df, id1=id1)
+
+    # Enumerate the columns
+    enumerated_columns = list(enumerate(df.columns))
+
+    return render_template('edit_csv.html', df=df, id1=id1, enumerated_columns=enumerated_columns)
 
 
 @app.route('/save_changes/<id1>', methods=["GET", 'POST'])
@@ -1239,6 +1310,10 @@ def save_changes(id1):
 
     # Retrieve the edited data from the form
     edited_data = {}
+    for key, value in request.form.items():
+        if key.startswith('header_'):
+            index = int(key.split('_')[1])
+            df.rename(columns={df.columns[index]: value}, inplace=True)
     for key, value in request.form.items():
         col, index = key.split('_')
         index = int(index)
@@ -1461,7 +1536,7 @@ if __name__ == "__main__":
     with app.app_context():
         db.create_all()
     # Your Flask app run code
-    app.run()
+    app.run(debug=True)
     # Create and start the image processing thread
-    thread = threading.Thread(target=MainImg, args=(user_id, image_folder, option, data))
+    thread = threading.Thread(target=MainImg, args=(user_id, image_folder, option, data, lang, type1))
     thread.start()
