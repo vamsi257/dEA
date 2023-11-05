@@ -32,10 +32,13 @@
                 <table style="border-spacing: 20px">
                   <thead>
                     <tr>
-                      {% for column in df.columns %}
-                        <th>{{ column }}</th>
-                      {% endfor %}
-                    </tr>
+                            {% for index, column in enumerated_columns %}
+
+                        <td>
+                            <input type="text" name="header_{{ index }}" value="{{ column }}">
+                        </td>
+                    {% endfor %}
+                        </tr>
                   </thead>
                 <tbody>
                 {% for index, row in df.iterrows() %}

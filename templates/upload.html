@@ -41,7 +41,7 @@
  <title>DataExtractor | Upload</title>
  {% endblock title %}
  {% block body %}
-     <br>
+     <br><br><br>
 {% for message in get_flashed_messages() %}
     <br><br>
     <div class="alert alert-warning alert-dismissible fade show" role="alert" onclick="closeAlert(this)">
@@ -58,10 +58,11 @@
         }, 500);
     }
 </script>
-
+<br><br>
   <div class="alert alert-success container my-3" role="alert" id="hide">
     Folder in process...
   </div>
+
      {% if session.theme == 'light' %}
         <div class="container2 bg-light">
      {% else %}
@@ -82,13 +83,31 @@
                     <p>Files Supported: PDFS/Images</p>
                     {{form.hidden_tag()}}
                     {{form.file(class_="form-control",webkitdirectory="true", id="convertbutton")}}
-                    
+                      <br>
+                      <label>Choose Language</label>
+                      <select name="language" id="language" class="form-select my-3 md-2">
+                          <option value="ara">Arabic</option>
+                      <option value="eng" selected> English</option>
+                          <option value="fra">French</option>
+                          <option value="deu">German</option>
+                          <option value="guj">Gujarati</option>
+                          <option value="hin">Hindi</option>
+                          <option value="kan">Kannada</option>
+                          <option value="tam">Tamil</option>
+                          <option value="tel">Telugu</option>
+                    </select>
+                    <br>
+                    <label>Extraction Type</label>
+                    <select name="type" id="type" class="form-select my-3 md-2">
+                        <option value="table">Table</option>
+                      <option value="text" selected> Text</option>
+                    </select>
                    
                     <br>
                     <label>Choose option</label>
                     <select name="option" id="selectoption" class="form-select my-3 md-2">
-                      <option value="1"> without cloud vision</option>
                       <option value="2">cloud vision</option>
+                      <option value="1" selected> without cloud vision</option>
                     </select>
 
                   <div class="select-scheduler" style="display: flex;

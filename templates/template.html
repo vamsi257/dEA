@@ -36,6 +36,21 @@
           <div class="input-group">
             <input id="file" name="file" type="file" multiple class="form-control" accept=".pdf,.jpg,.png,.tiff,.tif,.PDF,.JPEG,.jpeg" required/>
 <input type="text" placeholder="Enter Template Name Here" name="Temp_name" class="form-control" required>
+              <select name="type" id="type" class="form-control">
+                      <option value="text" selected>Text</option>
+                          <option value="table">Table</option>
+                    </select>
+              <select name="language" id="language" class="form-control">
+                          <option value="ara">Arabic</option>
+                      <option value="eng" selected> English</option>
+                          <option value="fra">French</option>
+                          <option value="deu">German</option>
+                          <option value="guj">Gujarati</option>
+                          <option value="hin">Hindi</option>
+                          <option value="kan">Kannada</option>
+                          <option value="tam">Tamil</option>
+                          <option value="tel">Telugu</option>
+                    </select>
 <button type="submit" class="btn btn-dark"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"
                 fill="currentColor" class="bi bi-receipt" viewBox="0 0 16 16">
                 <path
@@ -170,8 +185,6 @@ $(document).ready(function() {
 
 
 
-
-
   <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasRight" aria-labelledby="offcanvasRightLabel">
     <div class="offcanvas-header">
       <h5 id="offcanvasRightLabel">Instructions</h5>
@@ -188,7 +201,9 @@ $(document).ready(function() {
       <li><b>Logout</b>:It is use to logout from the application.</li>
     </div>
   </div>
- <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+
+
 
 <script>
   document.querySelectorAll(".imgs span").forEach(image =>{
@@ -298,6 +313,28 @@ document.querySelector('.popup-imag span').onclick =()=>{
                   {% endif %}
           </div>
     </div>
+         <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasRight" aria-labelledby="offcanvasRightLabel">
+    <div class="offcanvas-header">
+      <h5 id="offcanvasRightLabel">Instructions</h5>
+      <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <div class="offcanvas-body">
+      <li><b>Requested Users</b>: It will have the list of all requested users.</li>
+      <br>
+      <li><b>List Of Users</b>: It will have the list of all accepted users.</li>
+      <br>
+        {% if current_user.type == "Admin" %}
+      <li><b>Create accounts</b>: This section is basically use for the create the new admin or employee account.</li>
+      <br>
+        {% elif current_user.type == "Employee" %}
+             <li><b>IP or MAC change</b>:
+                  It will have the list of IP and Mac change Requests.</li>
+      <br>
+        {% endif %}
+      <li><b>Logout</b>:It is use to logout from the application.</li>
+    </div>
+  </div>
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
     {% endif %}
 
   {% endblock body %}
