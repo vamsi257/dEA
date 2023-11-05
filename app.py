@@ -143,7 +143,6 @@ def process_extracted_text(extracted_text):
 def MainImg(user_id, image_folder, option, data, lang, type1):
     with app.app_context():
         pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
-        csv_filename = f'{uuid.uuid1()}extracted_data.csv'
         coordinates_data = []
         input_string = data.cordinates
         lines = input_string.splitlines()
@@ -155,6 +154,7 @@ def MainImg(user_id, image_folder, option, data, lang, type1):
         all_extracted_data = []
 
         if type1 == "text":
+            csv_filename = f'{uuid.uuid1()}extracted_data.csv'
             # Process each image in the folder
             for image_filename in os.listdir(image_folder):
                 if image_filename.endswith(('.jpg', '.png', '.jpeg', '.tif', '.tiff')):
@@ -217,7 +217,7 @@ def MainImg(user_id, image_folder, option, data, lang, type1):
             for image_filename in os.listdir(image_folder):
                 if image_filename.endswith(('.jpg', '.png', '.jpeg', '.tif', '.tiff')):
                     extracted_data = {}  # Move this line here
-
+                    csv_filename = f'{uuid.uuid1()}extracted_data.csv'
                     # Load the image using OpenCV
                     image = cv2.imread(os.path.join(image_folder, image_filename))
 
@@ -253,13 +253,20 @@ def MainImg(user_id, image_folder, option, data, lang, type1):
                         print(f"Extracted text:\n{extracted_text}")
 
                         table_data = process_extracted_text(extracted_text)
-            # Convert list of dictionaries to DataFrame
-            df = pd.DataFrame(table_data)
+                    # Convert list of dictionaries to DataFrame
+                    df = pd.DataFrame(table_data)
 
-            # Save DataFrame as CSV
-            csv_file_path = os.path.join("./static/csvfile", csv_filename)
-            df.to_csv(csv_file_path, index=False)
-            print(df)
+                    # Save DataFrame as CSV
+                    csv_file_path = os.path.join("./static/csvfile", csv_filename)
+                    df.to_csv(csv_file_path, index=False)
+                    print(df)
+                    encoded_csv_filename = os.path.basename(csv_file_path).encode('utf-8')
+                    extract = ExtractedFiles(user_id=user_id, csvfilename=encoded_csv_filename,
+                                             date_time=datetime.datetime.now(timezone('Asia/Kolkata')))
+                    db.session.add(extract)
+                    db.session.commit()
+                    print(f"Extracted data Successfully!!")
+            return extract.id
         encoded_csv_filename = os.path.basename(csv_file_path).encode('utf-8')
         extract = ExtractedFiles(user_id=user_id, csvfilename=encoded_csv_filename,
                                  date_time=datetime.datetime.now(timezone('Asia/Kolkata')))
@@ -1269,8 +1276,8 @@ def download(id):
             token=token
         )
 
-    except NoResultFound:
-        flash("File Not Found!!")
+    except:
+        flash("File Not Found or Empty Data!!")
         return redirect(url_for("template"))
 
 
@@ -1294,7 +1301,7 @@ def upload_csv(id1):
     return render_template('edit_csv.html', df=df, id1=id1, enumerated_columns=enumerated_columns)
 
 
-@app.route('/save_changes/<id1>', methods=["GET", 'POST'])
+@app.route('/save_changes/<id1>', methods=["POST"])
 def save_changes(id1):
     # Fetch user data from the database
     d = ExtractedFiles.query.filter_by(id=id1).first()
@@ -1305,27 +1312,22 @@ def save_changes(id1):
     # Construct file path
     csv_path = os.path.join("./static/csvfile", csv_filename)
 
-    # Load CSV data using pandas
-    df = pd.read_csv(csv_path)
-
     # Retrieve the edited data from the form
+    new_headers = []
     edited_data = {}
     for key, value in request.form.items():
         if key.startswith('header_'):
-            index = int(key.split('_')[1])
-            df.rename(columns={df.columns[index]: value}, inplace=True)
-    for key, value in request.form.items():
-        col, index = key.split('_')
-        index = int(index)
-        if index not in edited_data:
-            edited_data[index] = {}
-        edited_data[index][col] = value
+            new_headers.append(value)
+        else:
+            col, index = key.split('_')
+            index = int(index)
+            if index not in edited_data:
+                edited_data[index] = {}
+            edited_data[index][col] = value
 
-    # Update the DataFrame with the edited data
-    for index, data in edited_data.items():
-        for col, value in data.items():
-            df.at[index, col] = value
-
+    # Create a new DataFrame with the edited data
+    df = pd.DataFrame.from_dict(edited_data, orient='index')
+    df.columns = new_headers
     # Save the DataFrame back to the CSV file
     df.to_csv(csv_path, index=False)
 
@@ -1536,7 +1538,7 @@ if __name__ == "__main__":
     with app.app_context():
         db.create_all()
     # Your Flask app run code
-    app.run(debug=True)
+    app.run()
     # Create and start the image processing thread
     thread = threading.Thread(target=MainImg, args=(user_id, image_folder, option, data, lang, type1))
     thread.start()
