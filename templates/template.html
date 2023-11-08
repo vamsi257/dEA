@@ -273,27 +273,8 @@ document.querySelector('.popup-imag span').onclick =()=>{
                   </div>
                 </div>
             </div>
-              <div class="col-lg-4 col-md-6 mb-4">
 
-              {% if current_user.type == "Employee" %}
-                {% if session.theme == 'light' %}
-         <div class="card bg-light" style="height: auto;">
-     {% else %}
-         <div class="card bg-dark" style="height: auto;">
-     {% endif %}
-                  <div class="card-body">
-                    <h5 class="card-title">IP or MAC change</h5>
-                    <p class="card-text">
-                        List of IP and Mac change Requests.
-                    </p>
-                    <a href="{{ url_for('list_ip') }}" class="btn btn-primary">Check</a>
-                  </div>
-                </div>
-            </div>
-                  {% endif %}
-          </div>
 
-          <div class="row">
               {% if current_user.type == "Admin" %}
               <div class="col-lg-4 col-md-6 mb-4">
                 {% if session.theme == 'light' %}
@@ -325,10 +306,6 @@ document.querySelector('.popup-imag span').onclick =()=>{
       <br>
         {% if current_user.type == "Admin" %}
       <li><b>Create accounts</b>: This section is basically use for the create the new admin or employee account.</li>
-      <br>
-        {% elif current_user.type == "Employee" %}
-             <li><b>IP or MAC change</b>:
-                  It will have the list of IP and Mac change Requests.</li>
       <br>
         {% endif %}
       <li><b>Logout</b>:It is use to logout from the application.</li>

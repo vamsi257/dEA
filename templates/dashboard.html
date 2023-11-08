@@ -47,9 +47,6 @@
 
     <a href="{{ url_for('logout')}}" class="btn btn-secondary btn-sm">Logout</a>
             <a href="{{ url_for('download_list', token=current_user.token)}}" class="btn btn-warning btn-sm">Extracted Files</a>
-            {% if data[4] == "User" %}
-            <a href="{{ url_for('edit_user', id=data[1])}}" class="btn btn-danger btn-sm">Request Change</a>
-            {% endif %}
 			<br><br>
 
 		</div></div></div>

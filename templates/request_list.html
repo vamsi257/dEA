@@ -1,7 +1,7 @@
 {% extends 'headfoot.html' %}
 {% block title %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
-<title>DataExtractor | Registered</title>
+<title>DataExtractor | Requests</title>
 {% endblock title %}
 {% block body %}
 
@@ -22,7 +22,7 @@
         }, 500);
     }
 </script>
-<h1 align="center">Registered Users</h1>
+<h1 align="center">Requests</h1>
 <br><br>
 <table class="table">
   <thead>
@@ -35,11 +35,9 @@
 		<th scope="col">IP</th>
 		<th scope="col">Mac</th>
         <th scope="col">Date_Time</th>
-        {% if current_user.type == "Employee"%}
-        <th scope="col">Edit</th>
-        {% endif %}
+		<th scope="col">Accept</th>
         <th scope="col">Mail</th>
-        <th scope="col">Remove</th>
+        <th scope="col">Reject</th>
 
     </tr>
   </thead>
@@ -54,15 +52,13 @@
 		<td>{{ row[4] }}</td>
 		<td>{{ row[5] }}</td>
 		<td>{{ row[6] }}</td>
-    {% if row[3] == "User" and current_user.type == "Employee"%}
-    <td>
-            <form action="{{ url_for("update_ip", id=row[-1]) }}">
-                <input type="submit" class="btn btn-primary btn-sm mt-3"
-                       onclick="return confirm('Please confirm that you want to edit?')"
-                       value="MakeNull">
+		<td>
+            <form action="{{ url_for('move_to_normal', id=row[-1]) }}" method="post">
+                <input type="submit" class="btn btn-success btn-sm mt-3"
+                       onclick="return confirm('Please confirm that you want to Accept {{ row[2] }}?')"
+                       value="Accept">
             </form>
-            </td>
-    {% endif %}
+        </td>
             <td>
             <form action="mailto:{{ row[1] }}" method="post">
                 <input type="submit" class="btn btn-warning btn-sm mt-3"
@@ -70,16 +66,14 @@
                        value="Mail">
             </form>
             </td>
-        {% if row[2] != "Admin" %}
         <td>
-            <form action="{{ url_for('remove_user', id=row[-1]) }}" method="post">
+            <form action="{{ url_for('reject', id=row[-1]) }}" method="post">
               <input type="submit"  class="btn btn-danger btn-sm mt-3"
-                     onclick="return confirm('Please confirm that you want to Remove {{ row[2] }}?')"
-                     value="Remove">
+                     onclick="return confirm('Please confirm that you want to Reject {{ row[2] }}?')"
+                     value="Reject">
             </form>
 
           </td>
-    {% endif %}
     </tr>
   {% endfor %}
   </tbody>
