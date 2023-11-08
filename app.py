@@ -539,6 +539,7 @@ def login():
                 if user.ip == "None":
                     # Update user's IP address in the database.
                     user.ip = str(IPadd)
+                    user.mac = get_mac_address()
                     db.session.add(user)
                     db.session.commit()
                     return redirect(url_for('login'))
@@ -1428,68 +1429,20 @@ def remove_user(id):
     return redirect(url_for("registered_user"))
 
 
-@app.route('/edit_user/<int:id>', methods=['GET', 'POST'])
-@login_required
-def edit_user(id):
-    if request.method == 'POST':
-        if current_user.type == "User":
-            data = ip_req(username=current_user.username,
-                          email=current_user.email, ip=request.form["ip"], mac=request.form["mac"])
-            db.session.add(data)
-            db.session.commit()
-            flash("Updation request has been submitted!!")
-            return redirect(url_for("dashboard"))
-        else:
-            data = db.session.query(tbl_user).filter_by(id=id).first()
-            data.ip = request.form["ip"]
-            data.mac = request.form["mac"]
-            msg = (f"This is to inform your account having \n Username : {data.username}"
-                   f"\n was updated successfully.For more info contact us.")
-            sub = "Your account has been updated!!"
-            mail(data.email, msg, sub)
-            db.session.commit()
-            flash("Updated successfully!!")
-            return redirect(url_for("registered_user"))
-    return render_template("edit_user.html", id=id)
-
-
-@app.route(f'/{encrypt("list_ip_mac_request")}')
-@login_required
-def list_ip():
-    data = db.session.query(ip_req).all()
-    row = []
-    for i in data:
-        row.append((i.username, i.email, i.ip, i.mac, i.Date_time, i.id))
-    return render_template('ip_list.html', data=row)
-
-
 @app.route("/update_ip/<int:id>", methods=["POST", "GET"])
 @login_required
 def update_ip(id):
     data1 = db.session.query(ip_req).filter_by(id=id).first()
     data = db.session.query(tbl_user).filter_by(username=data1.username).first()
-    data.ip = data1.ip
-    data.mac = data1.mac
+    data.ip = "None"
+    data.mac = "None"
     sub = "Profile Updated!!"
     content = "Your profile was updated successfully!!"
     mail(data.email, content, sub)
     db.session.delete(data1)
     db.session.commit()
     flash("Profile Updated!!")
-    return redirect(url_for("list_ip"))
-
-
-@app.route("/refuse_ip/<int:id>", methods=["POST", "GET"])
-@login_required
-def refuse_ip(id):
-    data = db.session.query(ip_req).filter_by(id=id).first()
-    sub = "Profile Update Request!!"
-    content = "Your profile update request was rejected. Contact us for more."
-    mail(data.email, content, sub)
-    db.session.delete(data)
-    db.session.commit()
-    flash("Request Rejected!!")
-    return redirect(url_for("list_ip"))
+    return redirect(url_for("registered_user"))
 
 
 # Route for applying changes on a folder
