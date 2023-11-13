@@ -158,7 +158,7 @@ def MainImg(user_id, image_folder, option, data, lang, type1):
             # Process each image in the folder
             for image_filename in os.listdir(image_folder):
                 if image_filename.endswith(('.jpg', '.png', '.jpeg', '.tif', '.tiff')):
-                    #print(f"Processing image: {image_filename}")
+                    # print(f"Processing image: {image_filename}")
 
                     # Define a data structure to store extracted data for this image
                     extracted_data = {}
@@ -171,8 +171,8 @@ def MainImg(user_id, image_folder, option, data, lang, type1):
                         _, column_title, x_min, x_max, y_min, y_max, data_type = coord
 
                         # Print image dimensions and coordinates for debugging
-                        #print(f"Image dimensions: {image.shape}")
-                        #print(f"Coordinates: x_min={x_min}, x_max={x_max}, y_min={y_min}, y_max={y_max}")
+                        # print(f"Image dimensions: {image.shape}")
+                        # print(f"Coordinates: x_min={x_min}, x_max={x_max}, y_min={y_min}, y_max={y_max}")
 
                         x_min = int(x_min)
                         x_max = int(x_max)
@@ -181,7 +181,7 @@ def MainImg(user_id, image_folder, option, data, lang, type1):
 
                         # Check if coordinates are within image boundaries
                         if x_min < 0 or x_max > image.shape[1] or y_min < 0 or y_max > image.shape[0]:
-                            #print("Error: Coordinates are outside image boundaries")
+                            # print("Error: Coordinates are outside image boundaries")
                             continue  # Skip this iteration
 
                         # Extract the region of interest (ROI) using coordinates
@@ -198,7 +198,7 @@ def MainImg(user_id, image_folder, option, data, lang, type1):
                             extracted_data[column_title] = extracted_text.strip()
 
                     # Append extracted data for this image to the list of all_extracted_data
-                    #print(extracted_data)
+                    # print(extracted_data)
                     all_extracted_data.append(extracted_data)
 
             # Save all extracted data as CSV
@@ -212,7 +212,7 @@ def MainImg(user_id, image_folder, option, data, lang, type1):
 
                     # Write the extracted data rows
                     csv_writer.writerows(all_extracted_data)
-                    #print(all_extracted_data)
+                    # print(all_extracted_data)
         elif type1 == "table":
             for image_filename in os.listdir(image_folder):
                 if image_filename.endswith(('.jpg', '.png', '.jpeg', '.tif', '.tiff')):
@@ -221,13 +221,13 @@ def MainImg(user_id, image_folder, option, data, lang, type1):
                     # Load the image using OpenCV
                     image = cv2.imread(os.path.join(image_folder, image_filename))
 
-                    #print(f"Processing image: {image_filename}")
+                    # print(f"Processing image: {image_filename}")
                     # Process each set of coordinates
                     for coord in coordinates_data:
                         _, column_title, x_min, x_max, y_min, y_max, data_type = coord
                         # Print image dimensions and coordinates for debugging
-                        #print(f"Image dimensions: {image.shape}")
-                        #print(f"Coordinates: x_min={x_min}, x_max={x_max}, y_min={y_min}, y_max={y_max}")
+                        # print(f"Image dimensions: {image.shape}")
+                        # print(f"Coordinates: x_min={x_min}, x_max={x_max}, y_min={y_min}, y_max={y_max}")
 
                         x_min = int(x_min)
                         x_max = int(x_max)
@@ -236,7 +236,7 @@ def MainImg(user_id, image_folder, option, data, lang, type1):
 
                         # Check if coordinates are within image boundaries
                         if x_min < 0 or x_max > image.shape[1] or y_min < 0 or y_max > image.shape[0]:
-                            #print("Error: Coordinates are outside image boundaries")
+                            # print("Error: Coordinates are outside image boundaries")
                             continue
 
                         # Extract the region of interest (ROI) using coordinates
@@ -250,7 +250,7 @@ def MainImg(user_id, image_folder, option, data, lang, type1):
 
                         # Perform OCR on the ROI with Tesseract
                         extracted_text = pytesseract.image_to_string(thresholded, lang=lang)
-                        #print(f"Extracted text:\n{extracted_text}")
+                        # print(f"Extracted text:\n{extracted_text}")
 
                         table_data = process_extracted_text(extracted_text)
                     # Convert list of dictionaries to DataFrame
@@ -259,20 +259,20 @@ def MainImg(user_id, image_folder, option, data, lang, type1):
                     # Save DataFrame as CSV
                     csv_file_path = os.path.join("./static/csvfile", csv_filename)
                     df.to_csv(csv_file_path, index=False)
-                    #print(df)
+                    # print(df)
                     encoded_csv_filename = os.path.basename(csv_file_path).encode('utf-8')
                     extract = ExtractedFiles(user_id=user_id, csvfilename=encoded_csv_filename,
                                              date_time=datetime.datetime.now(timezone('Asia/Kolkata')))
                     db.session.add(extract)
                     db.session.commit()
-                    #print(f"Extracted data Successfully!!")
+                    # print(f"Extracted data Successfully!!")
             return extract.id
         encoded_csv_filename = os.path.basename(csv_file_path).encode('utf-8')
         extract = ExtractedFiles(user_id=user_id, csvfilename=encoded_csv_filename,
                                  date_time=datetime.datetime.now(timezone('Asia/Kolkata')))
         db.session.add(extract)
         db.session.commit()
-        #print(f"Extracted data Successfully!!")
+        # print(f"Extracted data Successfully!!")
         return extract.id
 
 
@@ -286,7 +286,7 @@ def schedule_extraction(user_id, image_folder, option, data, scheduled_time, lan
     time_difference = (extraction_time - current_time).total_seconds()
     timer = threading.Timer(time_difference, MainImg, args=(user_id, image_folder, option, data, lang, type))
     timer.start()
-    #print(f'Scheduled{timer}')
+    # print(f'Scheduled{timer}')
     scheduled_tasks[image_folder] = timer
 
 
@@ -599,30 +599,6 @@ def login():
         return redirect(url_for("template"))
 
 
-# Route to save data received via AJAX to JSON and CSV files.
-@app.route(f'/{encrypt("save-data")}', methods=['POST'])
-def save_data():
-    data = request.get_json()  # Receive the data from the AJAX request
-    save_as_json(data)
-    save_as_csv(data)
-    return jsonify({'message': 'Data saved successfully'})
-
-
-# Function to save data as JSON file.
-def save_as_json(data):
-    with open('data.json', 'w') as file:
-        json.dump(data, file)
-
-
-# Function to save data as CSV file.
-def save_as_csv(data):
-    with open('data.csv', 'w', newline='') as file:
-        writer = csv.writer(file)
-        writer.writerow(['x', 'y'])  # Replace with the appropriate column headers
-        for area in data:
-            writer.writerow([area['x'], area['y']])  # Replace with the appropriate data fields
-
-
 # Decorator to token authentication for some routes.
 def token_required(f):
     @wraps(f)
@@ -756,9 +732,9 @@ def template():
         for (dirpath, dirnames, png_filename) in os.walk(os.path.join(app.config["UPLOAD_FOLDER"], "images", folder)):
             files = png_filename
             break
-        #print("filenames:", files)
+        # print("filenames:", files)
         app.config["FILES"] = files
-        #print(f"Redirecting to tagger with folder: {folder}")
+        # print(f"Redirecting to tagger with folder: {folder}")
         return redirect(url_for('tagger', token=token, folder=folder, lang=lang))
     else:
         # Fetch data related to templates from the database.
@@ -817,7 +793,7 @@ def tagger(folder, lang):
                 cordinates = data
                 templateName = app.config["TEMP_NAME"][0]
                 Template_format = app.config["TEMP_NAME"][1]
-                #print(Template_format)
+                # print(Template_format)
                 current_time = x.strftime("%I:%M:%S %p")
                 Date = f"{x.day}/{x.month}/{x.year}"
                 Day = x.strftime("%A")
@@ -1011,7 +987,7 @@ def upload(id):
         token = current_user.token
         app.config["HEAD"] = 0
         choose_scheduler = request.form.get("choose-scheduler")
-        #print("choose-scheduler", choose_scheduler)
+        # print("choose-scheduler", choose_scheduler)
         cor_data = Cordinate_Data.query.filter_by(cord_id=id).first()
         form = UploadFileForm()
         if request.method == "POST":
@@ -1040,7 +1016,7 @@ def upload(id):
             os.mkdir(folder_path)
             if choose_scheduler:
                 # If the scheduler is chosen, save the task to the database and redirect to the thank you page.
-                #print("INSIDE CHOOSE")
+                # print("INSIDE CHOOSE")
                 app.config["Data"] = []
 
                 for file in files:
@@ -1081,7 +1057,7 @@ def upload(id):
 
             else:
 
-                #print("INSIDE NORMAL")
+                # print("INSIDE NORMAL")
 
                 app.config["Data"] = []
 
@@ -1148,14 +1124,14 @@ def Helpchange():
     db.session.add(d)
     db.session.commit()
 
-    #print("yes")
+    # print("yes")
     return redirect(url_for("setting", token=[token]))
 
 
 # Route for changing the date format
 @app.route("/changedate", methods=["POST", "GET"])
 def FormatChange():
-    #print("hello" * 50)
+    # print("hello" * 50)
     # Get the 'token' and 'dateformat' from the request arguments
     token = current_user.token
     dateformat = request.args.get("dateformat")
@@ -1166,7 +1142,7 @@ def FormatChange():
     db.session.add(d)
     db.session.commit()
 
-    #print("yes")
+    # print("yes")
     return redirect(url_for("setting", token=[token]))
 
 
@@ -1220,7 +1196,7 @@ def label(id):
         folder = session.get('folder')
         name = request.args.get("name")
         dformat = request.args.get("dformat")
-        #print(id, name, dformat)
+        # print(id, name, dformat)
         # Update the label information in the app configuration
         app.config["LABELS"][int(id) - 1]["name"] = name
         app.config["LABELS"][int(id) - 1]["dformat"] = dformat
