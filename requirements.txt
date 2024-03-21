@@ -1,6 +1,6 @@
 
 cryptography==41.0.3
-flask==2.0.1
+flask==3.0.2
 flask-bcrypt==1.0.1
 flask-login==0.6.2
 flask-WTF==1.1.1
@@ -16,4 +16,4 @@ numpy==1.24.4
 pytesseract==0.3.10
 python-dateutil==2.8.2
 email-validator==2.0.0.post2
-werkzeug==2.0.2
+werkzeug==3.0.1
